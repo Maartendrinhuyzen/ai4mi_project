@@ -90,6 +90,8 @@ datasets_params: dict[str, dict[str, Any]] = {}
 datasets_params: dict[str, dict[str, Any]] = {}
 datasets_params["TOY2"] = {'K': 2, 'B': 2}
 datasets_params["SEGTHOR"] = {'K': 5, 'B': 8}
+datasets_params["SEGTHOR_transformed"] = {'K': 5, 'B': 8}
+
 
 models = {
     "shallowCNN": shallowCNN,

@@ -13,7 +13,7 @@ module load 2022
 module load Anaconda3/2022.05
 
 # Your job starts in the directory where you call sbatch
-cd $HOME/scur2459/ai4mi_project
+cd $HOME/ai4mi_project
 # Activate your environment
 source ai4mi/bin/activate
 # Run your code

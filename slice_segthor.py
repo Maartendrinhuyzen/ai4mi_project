@@ -79,15 +79,20 @@ def sanity_gt(gt, ct) -> bool:
 
 resize_: Callable = partial(resize, mode="constant", preserve_range=True, anti_aliasing=False)
 
-
 def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int, int],
-                  test_mode: bool = False) -> tuple[float, float, float]:
+                  test_mode: bool = False, use_affine_transformed: bool = False) -> tuple[float, float, float]:
     id_path: Path = source_path / ("train" if not test_mode else "test") / id_
-
+            
     ct_path: Path = (id_path / f"{id_}.nii.gz") if not test_mode else (source_path / "test" / f"{id_}.nii.gz")
+
+    # Choose between original or transformed files based on the flag
+    if use_affine_transformed:
+        gt_path: Path = id_path / "GT_transformed.nii.gz"
+    else:
+        gt_path: Path = id_path / "GT.nii.gz"
+
     nib_obj = nib.load(str(ct_path))
     ct: np.ndarray = np.asarray(nib_obj.dataobj)
-    # dx, dy, dz = nib_obj.header.get_zooms()
     x, y, z = ct.shape
     dx, dy, dz = nib_obj.header.get_zooms()
 
@@ -95,9 +100,7 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
 
     gt: np.ndarray
     if not test_mode:
-        gt_path: Path = id_path / "GT.nii.gz"
         gt_nib = nib.load(str(gt_path))
-        # print(nib_obj.affine, gt_nib.affine)
         gt = np.asarray(gt_nib.dataobj)
         assert sanity_gt(gt, ct)
     else:
@@ -114,15 +117,13 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
         assert img_slice.shape == gt_slice.shape
         gt_slice *= 63
         assert gt_slice.dtype == np.uint8, gt_slice.dtype
-        # assert set(np.unique(gt_slice)) <= set(range(5))
         assert set(np.unique(gt_slice)) <= set([0, 63, 126, 189, 252]), np.unique(gt_slice)
 
         arrays: list[np.ndarray] = [img_slice, gt_slice]
 
         subfolders: list[str] = ["img", "gt"]
         assert len(arrays) == len(subfolders)
-        for save_subfolder, data in zip(subfolders,
-                                        arrays):
+        for save_subfolder, data in zip(subfolders, arrays):
             filename = f"{id_}_{idz:04d}.png"
 
             save_path: Path = Path(dest_path, save_subfolder)
@@ -133,7 +134,6 @@ def slice_patient(id_: str, dest_path: Path, source_path: Path, shape: tuple[int
                 imsave(str(save_path / filename), data)
 
     return dx, dy, dz
-
 
 def get_splits(src_path: Path, retains: int, fold: int) -> tuple[list[str], list[str], list[str]]:
     ids: list[str] = sorted(map_(lambda p: p.name, (src_path / 'train').glob('*')))
@@ -180,7 +180,8 @@ def main(args: argparse.Namespace):
                                  dest_path=dest_mode,
                                  source_path=src_path,
                                  shape=tuple(args.shape),
-                                 test_mode=mode == 'test')
+                                 test_mode=mode == 'test',
+                                 use_affine_transformed=args.use_affine_transformed)  # Pass use_affine_transformed flag here
         resolutions: list[tuple[float, float, float]]
         iterator = tqdm_(split_ids)
         match args.process:
@@ -198,7 +199,6 @@ def main(args: argparse.Namespace):
         pickle.dump(resolution_dict, f, pickle.HIGHEST_PROTOCOL)
         print(f"Saved spacing dictionnary to {f}")
 
-
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Slicing parameters')
     parser.add_argument('--source_dir', type=str, required=True)
@@ -208,6 +208,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument('--retains', type=int, default=25, help="Number of retained patient for the validation data")
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--fold', type=int, default=0)
+    parser.add_argument('--use_affine_transformed', action='store_true', help="Flag to use transformed nii.gz files")
     parser.add_argument('--process', '-p', type=int, default=1,
                         help="The number of cores to use for processing")
     args = parser.parse_args()

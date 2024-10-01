@@ -1,0 +1,72 @@
+============================================================================================== 
+Warning! Mixing Conda and module environments may lead to corruption of the
+user environment. 
+We do not recommend users mixing those two environments unless absolutely
+necessary. Note that 
+SURF does not provide any support for Conda environment.
+For more information, please refer to our software policy page:
+https://servicedesk.surf.nl/wiki/display/WIKI/Software+policy+Snellius#SoftwarepolicySnellius-UseofAnacondaandMinicondaenvironmentsonSnellius 
+
+Remember that many packages have already been installed on the system and can
+be loaded using 
+the 'module load <package__name>' command. If you are uncertain if a package is
+already available 
+on the system, please use 'module avail' or 'module spider' to search for it.
+============================================================================================== 
+Optimizer's stopping condition: RegularStepGradientDescentOptimizerv4: Maximum number of iterations (200) exceeded.
+Final metric value: 0.0012457051924227084
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_38/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_19/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_37/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_27/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_31/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_26/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_18/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_30/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_08/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_07/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_23/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_21/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_02/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_15/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_13/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_09/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_20/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_24/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_33/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_32/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_28/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_01/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_40/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_03/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_29/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_36/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_35/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_11/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_06/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_10/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_05/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_22/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_39/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_16/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_25/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_17/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_14/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_04/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_34/GT_transformed.nii.gz
+Transformed heart saved at: /home/scur2457/ai4mi_project/data/segthor_train/train/Patient_12/GT_transformed.nii.gz
+
+JOB STATISTICS
+==============
+Job ID: 8041074
+Cluster: snellius
+User/Group: scur2457/scur2457
+State: RUNNING
+Nodes: 1
+Cores per node: 18
+CPU Utilized: 00:00:00
+CPU Efficiency: 0.00% of 01:26:24 core-walltime
+Job Wall-clock time: 00:04:48
+Memory Utilized: 0.00 MB (estimated maximum)
+Memory Efficiency: 0.00% of 120.00 GB (120.00 GB/node)
+WARNING: Efficiency statistics may be misleading for RUNNING jobs.

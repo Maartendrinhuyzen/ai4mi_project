@@ -1,0 +1,44 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu            # Partition to use
+#SBATCH --gpus=1                   # Number of GPUs
+#SBATCH --job-name=train_transform # Job name
+#SBATCH --ntasks=1                 # Run on a single task
+#SBATCH --cpus-per-task=18         # Number of CPU cores per task
+#SBATCH --time=02:00:00            # Job run time limit
+#SBATCH --output=output/train_transform_%A.out  # Output file
+
+module purge
+module load 2022                    # Load necessary modules
+module load Anaconda3/2022.05        # Load Anaconda environment
+
+# Change to the project directory
+cd $HOME/ai4mi_project
+
+# Activate your Python environment
+source ai4mi/bin/activate
+
+# Set directories and file paths
+DATA_DIR="$HOME/ai4mi_project/data/segthor_train/train"
+FIXED_IMAGE="$DATA_DIR/Patient_27/GT2.nii.gz"
+MOVING_IMAGE="$DATA_DIR/Patient_27/GT.nii.gz"
+TRANSFORM_FILE="$DATA_DIR/Patient_27/affine_transform.tfm"
+
+# Step 1: Perform affine transformation
+echo "Running affine transformation..."
+srun python affine.py --data_dir "$DATA_DIR" \
+                      --fixed_image "$FIXED_IMAGE" \
+                      --moving_image "$MOVING_IMAGE" \
+                      --transform_file "$TRANSFORM_FILE"
+
+# Step 2: Slice the transformed files
+SOURCE_DIR="$HOME/ai4mi_project/data/segthor_train"
+DEST_DIR="$HOME/ai4mi_project/data/SEGTHOR_transformed"
+
+echo "Slicing transformed files..."
+srun python slice_segthor.py --source_dir "$SOURCE_DIR" \
+                             --dest_dir "$DEST_DIR" \
+                             --shape 256 256 \
+                             --retain 10 \
+                             --use_affine_transformed \
+                             --process 18
