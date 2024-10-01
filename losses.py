@@ -24,7 +24,8 @@
 
 
 from torch import einsum
-
+import torch
+import torch.nn as nn
 from utils import simplex, sset
 
 
