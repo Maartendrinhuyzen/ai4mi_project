@@ -47,7 +47,10 @@ from utils import (Dcm,
                    probs2class,
                    tqdm_,
                    dice_coef,
-                   save_images)
+                   save_images,
+                   average_hausdorff_distance,
+                   intersection,
+                   union)
 
 from losses import (CrossEntropy,
                    BalancedCrossEntropy,
@@ -178,19 +181,23 @@ def runTraining(args):
         train_dataset = train_loader.dataset
         class_occurrences = count_class_occurrences(train_dataset, K)
         class_weights = calculate_class_weights(class_occurrences)
-        loss_fn = FocalLoss(idk=list(range(K)), alpha=class_weights, gamma=2.0, reduction='mean')    
+        loss_fn = FocalLoss(idk=list(range(K)), alpha=class_weights, gamma=2.0, reduction='mean')
     elif args.mode in ["partial"] and args.dataset in ['SEGTHOR', 'SEGTHOR_STUDENTS']:
         loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
     else:
         raise ValueError(args.mode, args.dataset)
 
-    # Notice one has the length of the _loader_, and the other one of the _dataset_
-    log_loss_tra: Tensor = torch.zeros((args.epochs, len(train_loader)))
-    log_dice_tra: Tensor = torch.zeros((args.epochs, len(train_loader.dataset), K))
-    log_loss_val: Tensor = torch.zeros((args.epochs, len(val_loader)))
-    log_dice_val: Tensor = torch.zeros((args.epochs, len(val_loader.dataset), K))
+    # Initialize logs for losses and metrics
+    log_loss_tra = torch.zeros((args.epochs, len(train_loader)))
+    log_dice_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))
+    log_loss_val = torch.zeros((args.epochs, len(val_loader)))
+    log_dice_val = torch.zeros((args.epochs, len(val_loader.dataset), K))
+    log_iou_tra = torch.zeros((args.epochs, len(train_loader)))  # IoU during training
+    log_iou_val = torch.zeros((args.epochs, len(val_loader)))    # IoU during validation
+    log_ahd_tra = torch.zeros((args.epochs, len(train_loader)))  # AHD during training
+    log_ahd_val = torch.zeros((args.epochs, len(val_loader)))    # AHD during validation
 
-    best_dice: float = 0
+    best_dice = 0
 
     for e in range(args.epochs):
         for m in ['train', 'val']:
@@ -212,29 +219,40 @@ def runTraining(args):
                     log_loss = log_loss_val
                     log_dice = log_dice_val
 
-            with cm():  # Either dummy context manager, or the torch.no_grad for validation
+            with cm():  # Either dummy context manager or torch.no_grad for validation
                 j = 0
                 tq_iter = tqdm_(enumerate(loader), total=len(loader), desc=desc)
                 for i, data in tq_iter:
                     img = data['images'].to(device)
                     gt = data['gts'].to(device)
 
-                    if opt:  # So only for training
+                    if opt:  # Only for training
                         opt.zero_grad()
 
-                    # Sanity tests to see we loaded and encoded the data correctly
+                    # Ensure the data range is valid
                     assert 0 <= img.min() and img.max() <= 1
                     B, _, W, H = img.shape
 
+                    # Get predictions
                     pred_logits = net(img)
-                    pred_probs = F.softmax(1 * pred_logits, dim=1)  # 1 is the temperature parameter
+                    pred_probs = F.softmax(1 * pred_logits, dim=1)  # Softmax across classes
 
-                    # Metrics computation, not used for training
+                    # For each sample in the batch
                     pred_seg = probs2one_hot(pred_probs)
                     log_dice[e, j:j + B, :] = dice_coef(gt, pred_seg)  # One DSC value per sample and per class
 
+                    # IoU computation
+                    intersection_value = intersection(pred_seg, gt).float().sum()
+                    union_value = union(pred_seg, gt).float().sum()
+                    log_iou_val[e, i] = (intersection_value + 1e-6) / (union_value + 1e-6)
+
+                    # Average Hausdorff Distance (AHD)
+                    ahd = average_hausdorff_distance(pred_seg.cpu().numpy(), gt.cpu().numpy())
+                    log_ahd_val[e, i] = ahd
+
+                    # Loss computation
                     loss = loss_fn(pred_probs, gt)
-                    log_loss[e, i] = loss.item()  # One loss value per batch (averaged in the loss)
+                    log_loss[e, i] = loss.item()
 
                     if opt:  # Only for training
                         loss.backward()
@@ -243,37 +261,48 @@ def runTraining(args):
                     if m == 'val':
                         with warnings.catch_warnings():
                             warnings.filterwarnings('ignore', category=UserWarning)
-                            predicted_class: Tensor = probs2class(pred_probs)
-                            mult: int = 63 if K == 5 else (255 / (K - 1))
-                            save_images(predicted_class * mult,
-                                        data['stems'],
-                                        args.dest / f"iter{e:03d}" / m)
+                            predicted_class = probs2class(pred_probs)
+                            mult = 63 if K == 5 else (255 / (K - 1))
+                            save_images(predicted_class * mult, data['stems'], args.dest / f"iter{e:03d}" / m)
 
-                    j += B  # Keep in mind that _in theory_, each batch might have a different size
-                    # For the DSC average: do not take the background class (0) into account:
-                    postfix_dict: dict[str, str] = {"Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
-                                                    "Loss": f"{log_loss[e, :i + 1].mean():5.2e}"}
-                    if K > 2:
-                        postfix_dict |= {f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}"
-                                         for k in range(1, K)}
+                    j += B
+
+                    # Update the progress bar with metrics
+                    postfix_dict = {
+                        "Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
+                        "Loss": f"{log_loss[e, :i + 1].mean():5.2e}",
+                        "IoU": f"{log_iou_val[e, :i + 1].mean():05.3f}",
+                        "AHD": f"{log_ahd_val[e, :i + 1].mean():05.3f}"
+                    }
+
+                    if K > 2:  # Multi-class case
+                        postfix_dict |= {f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}" for k in range(1, K)}
+                        postfix_dict |= {f"IoU-{k}": f"{log_iou_val[e, :i + 1].mean():05.3f}" for k in range(1, K)}
+                        postfix_dict |= {f"AHD-{k}": f"{log_ahd_val[e, :i + 1].mean():05.3f}" for k in range(1, K)}
+
                     tq_iter.set_postfix(postfix_dict)
 
-        # I save it at each epochs, in case the code crashes or I decide to stop it early
+        # Save the metrics at each epoch
         np.save(args.dest / "loss_tra.npy", log_loss_tra)
         np.save(args.dest / "dice_tra.npy", log_dice_tra)
+        np.save(args.dest / "iou_tra.npy", log_iou_tra)
+        np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
         np.save(args.dest / "loss_val.npy", log_loss_val)
         np.save(args.dest / "dice_val.npy", log_dice_val)
+        np.save(args.dest / "iou_val.npy", log_iou_val)
+        np.save(args.dest / "ahd_val.npy", log_ahd_val)
 
-        current_dice: float = log_dice_val[e, :, 1:].mean().item()
+        # Track best Dice score
+        current_dice = log_dice_val[e, :, 1:].mean().item()
         if current_dice > best_dice:
             print(f">>> Improved dice at epoch {e}: {best_dice:05.3f}->{current_dice:05.3f} DSC")
             best_dice = current_dice
             with open(args.dest / "best_epoch.txt", 'w') as f:
-                    f.write(str(e))
+                f.write(str(e))
 
             best_folder = args.dest / "best_epoch"
             if best_folder.exists():
-                    rmtree(best_folder)
+                rmtree(best_folder)
             copytree(args.dest / f"iter{e:03d}", Path(best_folder))
 
             torch.save(net, args.dest / "bestmodel.pkl")

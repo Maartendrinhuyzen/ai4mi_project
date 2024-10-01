@@ -27,6 +27,7 @@ from functools import partial
 from multiprocessing import Pool
 from contextlib import AbstractContextManager
 from typing import Callable, Iterable, List, Set, Tuple, TypeVar, cast
+from scipy.spatial.distance import directed_hausdorff
 
 import torch
 import numpy as np
@@ -176,3 +177,41 @@ def union(a: Tensor, b: Tensor) -> Tensor:
     assert sset(res, [0, 1])
 
     return res
+
+def average_hausdorff_distance(pred, gt):
+    """
+    Compute the average Hausdorff distance between the predicted and ground truth segmentation.
+    
+    Args:
+    - pred: Predicted segmentation (numpy array).
+    - gt: Ground truth segmentation (numpy array).
+    
+    Returns:
+    - Average Hausdorff distance between the two segmentations.
+    """
+    # Ensure pred and gt are binary masks of the same shape
+    assert pred.shape == gt.shape, "Shape mismatch between prediction and ground truth."
+
+    # Initialize a list to store Hausdorff distances for each slice
+    hausdorff_distances = []
+
+    # Compute Hausdorff distance slice by slice (assuming the last axis is the depth)
+    for slice_idx in range(pred.shape[-1]):  # Loop over the depth
+        pred_slice = pred[..., slice_idx].astype(np.bool_)
+        gt_slice = gt[..., slice_idx].astype(np.bool_)
+        
+        # Flatten the slices into 2D arrays of coordinates
+        pred_coords = np.column_stack(np.where(pred_slice))
+        gt_coords = np.column_stack(np.where(gt_slice))
+
+        if len(pred_coords) == 0 or len(gt_coords) == 0:
+            # If either segmentation has no positive points in this slice, set distance to 0
+            hausdorff_distances.append(0)
+        else:
+            # Compute directed Hausdorff distance in both directions and take the maximum
+            hd = max(directed_hausdorff(pred_coords, gt_coords)[0],
+                     directed_hausdorff(gt_coords, pred_coords)[0])
+            hausdorff_distances.append(hd)
+
+    # Return the average Hausdorff distance across all slices
+    return np.mean(hausdorff_distances)
