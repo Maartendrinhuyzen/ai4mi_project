@@ -1,0 +1,20 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=train
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=18
+#SBATCH --time=01:00:00
+#SBATCH --output=output/unet_dice_%A.out
+
+module purge
+module load 2022
+module load Anaconda3/2022.05
+
+# Your job starts in the directory where you call sbatch
+cd $HOME/scur2459/ai4mi_project
+# Activate your environment
+source ai4mi/bin/activate
+# Run your code
+srun python -O main.py --dataset SEGTHOR --mode dice --epoch 25 --dest results/unet_dice/ce --gpu --model UNet
