@@ -1,42 +1,0 @@
-============================================================================================== 
-Warning! Mixing Conda and module environments may lead to corruption of the
-user environment. 
-We do not recommend users mixing those two environments unless absolutely
-necessary. Note that 
-SURF does not provide any support for Conda environment.
-For more information, please refer to our software policy page:
-https://servicedesk.surf.nl/wiki/display/WIKI/Software+policy+Snellius#SoftwarepolicySnellius-UseofAnacondaandMinicondaenvironmentsonSnellius 
-
-Remember that many packages have already been installed on the system and can
-be loaded using 
-the 'module load <package__name>' command. If you are uncertain if a package is
-already available 
-on the system, please use 'module avail' or 'module spider' to search for it.
-============================================================================================== 
-Namespace(source_dir='/home/scur2457/ai4mi_project/data/segthor_train', dest_dir='/home/scur2457/ai4mi_project/data/SEGTHOR_transformed', shape=[256, 256], retains=10, seed=0, fold=0, use_affine_transformed=True, process=18)
-Founds 40 in the id list
-['Patient_01', 'Patient_02', 'Patient_03', 'Patient_04', 'Patient_05', 'Patient_06', 'Patient_07', 'Patient_08', 'Patient_09', 'Patient_10']
-Founds 0 test ids
-[]
-Slicing 30 pairs to /home/scur2457/ai4mi_project/data/SEGTHOR_transformed/train
-  0%|          | 0/30 [?it/s]100%|██████████| 30/30 [335.53it/s]
-Slicing 10 pairs to /home/scur2457/ai4mi_project/data/SEGTHOR_transformed/val
-  0%|          | 0/10 [?it/s]100%|██████████| 10/10 [123.02it/s]
-Slicing 0 pairs to /home/scur2457/ai4mi_project/data/SEGTHOR_transformed/test
-|          | 0/0 [?it/s]|          | 0/0 [?it/s]
-Saved spacing dictionnary to <_io.BufferedWriter name='/home/scur2457/ai4mi_project/data/SEGTHOR_transformed/spacing.pkl'>
-
-JOB STATISTICS
-==============
-Job ID: 8042584
-Cluster: snellius
-User/Group: scur2457/scur2457
-State: RUNNING
-Nodes: 1
-Cores per node: 18
-CPU Utilized: 00:00:00
-CPU Efficiency: 0.00% of 00:10:48 core-walltime
-Job Wall-clock time: 00:00:36
-Memory Utilized: 0.00 MB (estimated maximum)
-Memory Efficiency: 0.00% of 120.00 GB (120.00 GB/node)
-WARNING: Efficiency statistics may be misleading for RUNNING jobs.
