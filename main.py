@@ -40,6 +40,7 @@ from torch.utils.data import DataLoader
 from dataset import SliceDataset
 from ShallowNet import shallowCNN
 from ENet import ENet
+from Unet import UNet
 from utils import (Dcm,
                    class2one_hot,
                    probs2one_hot,
@@ -50,6 +51,35 @@ from utils import (Dcm,
 
 from losses import (CrossEntropy)
 
+from multiprocessing import Pool
+from tqdm import tqdm
+
+def count_class_occurrences(dataset: SliceDataset, num_classes: int) -> list[int]:
+    class_occurrences = [0] * num_classes
+    total_samples = len(dataset)
+
+    print(f">> Counting class occurrences across {total_samples} samples...")
+
+    for idx in tqdm(range(total_samples)):
+        sample = dataset[idx]
+        gt = sample['gts']  # Shape: [num_classes, H, W]
+        
+        # Check which classes are present in this sample
+        for class_idx in range(num_classes):
+            if gt[class_idx].any():
+                class_occurrences[class_idx] += 1
+
+    print(f">> Class occurrences: {class_occurrences}")
+    return class_occurrences
+
+def calculate_class_weights(frequencies: list[float], alpha: float = 1.0) -> list[float]:
+    epsilon = 1e-8  # To prevent division by zero
+    weights = [alpha / (freq + epsilon) if freq > 0 else 0.0 for freq in frequencies]
+    # Normalize weights to have mean = 1
+    mean_weight = sum(weights) / len(weights)
+    normalized_weights = [w / mean_weight for w in weights]
+    print(f">> Calculated Class Weights: {normalized_weights}")
+    return normalized_weights
 
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
@@ -57,6 +87,11 @@ datasets_params: dict[str, dict[str, Any]] = {}
 datasets_params["TOY2"] = {'K': 2, 'net': shallowCNN, 'B': 2}
 datasets_params["SEGTHOR"] = {'K': 5, 'net': ENet, 'B': 8}
 
+models = {
+    "shallowCNN": shallowCNN,
+    "ENet": ENet,
+    "UNet": UNet
+}
 
 def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     # Networks and scheduler
@@ -70,6 +105,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     net.to(device)
 
     lr = 0.0005
+    #optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)   
     optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
 
     # Dataset part
