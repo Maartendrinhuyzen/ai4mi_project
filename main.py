@@ -49,7 +49,10 @@ from utils import (Dcm,
                    dice_coef,
                    save_images)
 
-from losses import (CrossEntropy)
+from losses import (CrossEntropy,
+                   BalancedCrossEntropy,
+                   DiceLoss,
+                   FocalLoss)
 
 from multiprocessing import Pool
 from tqdm import tqdm
@@ -84,8 +87,9 @@ def calculate_class_weights(frequencies: list[float], alpha: float = 1.0) -> lis
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
 # Avoids the clases with C (often used for the number of Channel)
-datasets_params["TOY2"] = {'K': 2, 'net': shallowCNN, 'B': 2}
-datasets_params["SEGTHOR"] = {'K': 5, 'net': ENet, 'B': 8}
+datasets_params: dict[str, dict[str, Any]] = {}
+datasets_params["TOY2"] = {'K': 2, 'B': 2}
+datasets_params["SEGTHOR"] = {'K': 5, 'B': 8}
 
 models = {
     "shallowCNN": shallowCNN,
@@ -100,7 +104,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     print(f">> Picked {device} to run experiments")
 
     K: int = datasets_params[args.dataset]['K']
-    net = datasets_params[args.dataset]['net'](1, K)
+    net = models[args.model](1, K)
     net.init_weights()
     net.to(device)
 
@@ -150,9 +154,8 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
                             batch_size=B,
                             num_workers=args.num_workers,
                             shuffle=False)
-
+    
     args.dest.mkdir(parents=True, exist_ok=True)
-
     return (net, optimizer, device, train_loader, val_loader, K)
 
 
@@ -162,6 +165,18 @@ def runTraining(args):
 
     if args.mode == "full":
         loss_fn = CrossEntropy(idk=list(range(K)))  # Supervise both background and foreground
+    elif args.mode == "balanced":
+        train_dataset = train_loader.dataset
+        class_occurrences = count_class_occurrences(train_dataset, K)
+        class_weights = calculate_class_weights(class_occurrences)
+        loss_fn = BalancedCrossEntropy(idk=list(range(K)), class_weights=class_weights)
+    elif args.mode == "dice":
+        loss_fn = DiceLoss(idk=list(range(K)), smooth=1.0)
+    elif args.mode == "focal":
+        train_dataset = train_loader.dataset
+        class_occurrences = count_class_occurrences(train_dataset, K)
+        class_weights = calculate_class_weights(class_occurrences)
+        loss_fn = FocalLoss(idk=list(range(K)), alpha=class_weights, gamma=2.0, reduction='mean')    
     elif args.mode in ["partial"] and args.dataset in ['SEGTHOR', 'SEGTHOR_STUDENTS']:
         loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
     else:
@@ -268,9 +283,11 @@ def main():
 
     parser.add_argument('--epochs', default=200, type=int)
     parser.add_argument('--dataset', default='TOY2', choices=datasets_params.keys())
-    parser.add_argument('--mode', default='full', choices=['partial', 'full'])
+    parser.add_argument('--mode', default='full', choices=['partial', 'full', 'balanced', 'dice', 'focal'])
     parser.add_argument('--dest', type=Path, required=True,
                         help="Destination directory to save the results (predictions and weights).")
+    parser.add_argument('--model', default='UNet', choices=list(models.keys()),
+                        help="Choose the model architecture")                    
 
     parser.add_argument('--num_workers', type=int, default=5)
     parser.add_argument('--gpu', action='store_true')
