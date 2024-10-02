@@ -55,7 +55,8 @@ from utils import (Dcm,
 from losses import (CrossEntropy,
                    BalancedCrossEntropy,
                    DiceLoss,
-                   FocalLoss)
+                   FocalLoss,
+                   CombinedLoss)
 
 from multiprocessing import Pool
 from tqdm import tqdm
@@ -114,8 +115,8 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     net.to(device)
 
     lr = 0.0005
-    #optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)   
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
+    optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)   
+    #optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
 
     # Dataset part
     B: int = datasets_params[args.dataset]['B']
@@ -182,6 +183,8 @@ def runTraining(args):
         class_occurrences = count_class_occurrences(train_dataset, K)
         class_weights = calculate_class_weights(class_occurrences)
         loss_fn = FocalLoss(idk=list(range(K)), alpha=class_weights, gamma=2.0, reduction='mean')
+    elif args.mode == "combined":
+        loss_fn = CombinedLoss(idk=list(range(K)), weight_ce=1.0, weight_dice=1.0)
     elif args.mode in ["partial"] and args.dataset in ['SEGTHOR', 'SEGTHOR_STUDENTS']:
         loss_fn = CrossEntropy(idk=[0, 1, 3, 4])  # Do not supervise the heart (class 2)
     else:
@@ -314,7 +317,7 @@ def main():
 
     parser.add_argument('--epochs', default=200, type=int)
     parser.add_argument('--dataset', default='TOY2', choices=datasets_params.keys())
-    parser.add_argument('--mode', default='full', choices=['partial', 'full', 'balanced', 'dice', 'focal'])
+    parser.add_argument('--mode', default='full', choices=['partial', 'full', 'balanced', 'dice', 'focal', 'combined'])
     parser.add_argument('--dest', type=Path, required=True,
                         help="Destination directory to save the results (predictions and weights).")
     parser.add_argument('--model', default='UNet', choices=list(models.keys()),
