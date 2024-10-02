@@ -154,3 +154,15 @@ class FocalLoss(nn.Module):
             return focal_loss.sum()
         else:
             return focal_loss        
+
+
+class CombinedLoss(nn.Module):
+    def __init__(self, idk, weight_ce, weight_dice):
+        super(CombinedLoss, self).__init__()
+        self.ce = CrossEntropy(idk=idk)
+        self.dice = DiceLoss(idk=idk, smooth=1.0)
+        self.weight_ce = weight_ce
+        self.weight_dice = weight_dice
+
+    def forward(self, pred, target):
+        return self.weight_ce * self.ce(pred, target) + self.weight_dice * self.dice(pred, target)            
