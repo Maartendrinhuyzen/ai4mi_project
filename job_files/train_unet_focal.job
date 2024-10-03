@@ -17,4 +17,4 @@ cd $HOME/ai4mi_project
 # Activate your environment
 source ai4mi/bin/activate
 # Run your code
-srun python -O main.py --dataset SEGTHOR --mode focal --epoch 25 --dest results/unet_focal/ce --gpu --model UNet
+srun python -O main.py --dataset SEGTHOR --mode focal --epoch 1 --dest results/unet_focal/ce --gpu --model UNet --k_folds 2

@@ -23,28 +23,58 @@
 # SOFTWARE.
 
 from pathlib import Path
-from typing import Callable, Union
+from typing import Callable, Union, List, Tuple
 
 from torch import Tensor
 from PIL import Image
 from torch.utils.data import Dataset
 
 
-def make_dataset(root, subset) -> list[tuple[Path, Path]]:
-    assert subset in ['train', 'val', 'test']
+def make_dataset(root, subset) -> List[Tuple[Path, Path]]:
+    """
+    Creates the dataset by combining image and label pairs.
 
+    Args:
+    - root: The root directory of the dataset.
+    - subset: The subset to load ('train', 'val', 'test', or 'full').
+
+    Returns:
+    - A list of tuples containing image and label paths.
+    """
     root = Path(root)
 
-    img_path = root / subset / 'img'
-    full_path = root / subset / 'gt'
+    if subset in ['train', 'val', 'test']:
+        img_path = root / subset / 'img'
+        full_path = root / subset / 'gt'
 
-    images = sorted(img_path.glob("*.png"))
-    full_labels = sorted(full_path.glob("*.png"))
+        images = sorted(img_path.glob("*.png"))
+        full_labels = sorted(full_path.glob("*.png"))
 
-    return list(zip(images, full_labels))
+        return list(zip(images, full_labels))
+
+    elif subset == 'full':
+        # Combine the 'train' and 'val' sets for the full dataset
+        train_data = make_dataset(root, 'train')
+        val_data = make_dataset(root, 'val')
+        return train_data + val_data
+
+    else:
+        raise ValueError(f"Unknown subset {subset}. Valid options are 'train', 'val', 'test', or 'full'.")
 
 
 class SliceDataset(Dataset):
+    """
+    A dataset class to load image and label pairs for segmentation.
+
+    Args:
+    - subset: Which subset to use ('train', 'val', 'test', or 'full').
+    - root_dir: The root directory containing the dataset.
+    - img_transform: The transformation to apply to the images.
+    - gt_transform: The transformation to apply to the ground truth labels.
+    - augment: Whether to apply data augmentation.
+    - equalize: Whether to apply histogram equalization.
+    - debug: Whether to enable debug mode (using a small subset of data).
+    """
     def __init__(self, subset, root_dir, img_transform=None,
                  gt_transform=None, augment=False, equalize=False, debug=False):
         self.root_dir: str = root_dir
@@ -53,6 +83,7 @@ class SliceDataset(Dataset):
         self.augmentation: bool = augment
         self.equalize: bool = equalize
 
+        # Use the 'full' option to combine 'train' and 'val' sets
         self.files = make_dataset(root_dir, subset)
         if debug:
             self.files = self.files[:10]
