@@ -117,8 +117,10 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     net.init_weights()
     net.to(device)
 
-    lr = 0.0005
-    optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)
+    # Use the hyper parameter from arguments
+    lr = args.hyper_parameter
+    optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)   
+    #optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
 
     # Dataset part
     B: int = datasets_params[args.dataset]['B']
@@ -360,11 +362,13 @@ def main():
     parser.add_argument('--debug', action='store_true',
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logic around epochs and logging easily.")
-    parser.add_argument('--k_folds', type=int, default=1, help="Number of folds for k-fold cross-validation.")
+                             
+    parser.add_argument('--hyper_parameter', type=float, default=None,
+                        help="The hyperparameter to tune")
 
     args = parser.parse_args()
 
-    pprint(args)
+    pprint(vars(args))
 
     runTraining(args)
 
