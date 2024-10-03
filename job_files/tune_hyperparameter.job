@@ -1,0 +1,51 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=hyp_tune_array
+#SBATCH --array=0-4  # Adjust based on the number of hyperparameter values
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=18
+#SBATCH --time=2:30:00
+#SBATCH --output=output/hyp_tuning_array_%A_%a.out
+#SBATCH --error=output/hyp_tuning_array_%A_%a.err
+
+module purge
+module load 2022
+module load Anaconda3/2022.05
+
+# Navigate to your project directory
+cd $HOME/ai4mi_project
+
+# Activate your Conda environment
+source ai4mi/bin/activate
+
+# Define hyperparameter values
+HYPER_PARAM_VALUES=(1e-5 5e-5 1e-4 5e-4 1e-3)  # adjust for different hyper parameters
+
+# Get the current hyperparameter value based on SLURM_ARRAY_TASK_ID
+VALUE=${HYPER_PARAM_VALUES[$SLURM_ARRAY_TASK_ID]}
+
+# Retrieve hyperparameter name
+HYPER_PARAM_NAME="learning_rate"
+
+# Define destination directory for results
+DEST_DIR="./results/hyperparameter_tuning/${HYPER_PARAM_NAME}_${VALUE}"
+mkdir -p "$DEST_DIR"
+
+echo "[$(date)] Starting training with $HYPER_PARAM_NAME: $VALUE"
+echo "[$(date)] Results will be saved to: $DEST_DIR"
+
+# Execute the training script with the specified hyperparameter value
+srun python -O main.py \
+    --epochs 25 \
+    --dataset SEGTHOR_transformed \
+    --mode combined \
+    --dest "$DEST_DIR" \
+    --model UNet \
+    --num_workers 5 \
+    --hyper_parameter "$VALUE" \
+    --gpu
+
+echo "[$(date)] Completed training with $HYPER_PARAM_NAME: $VALUE"
+echo "----------------------------------------------"
