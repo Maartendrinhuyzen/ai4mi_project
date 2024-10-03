@@ -311,8 +311,18 @@ def runTraining(args):
             torch.save(net, args.dest / "bestmodel.pkl")
             torch.save(net.state_dict(), args.dest / "bestweights.pt")
 
+def set_seed(seed: int = 42):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    # Ensures deterministic behavior for CUDA operations
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def main():
+    set_seed(42)
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--epochs', default=200, type=int)

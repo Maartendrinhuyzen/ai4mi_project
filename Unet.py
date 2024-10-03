@@ -126,7 +126,7 @@ class UNet(nn.Module):
     def init_weights(self, *args, **kwargs):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
-                nn.init.xavier_normal_(m.weight.data)
+                nn.init.xavier_normal_(m.weight)
             elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.normal_(1.0, 0.02)
-                m.bias.data.fill_(0)
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.bias, 0)
