@@ -334,6 +334,7 @@ def runTraining(args):
 
     # Optionally, save the k-fold dice values to a numpy file
     np.save(args.dest / "kfold_dice_scores.npy", np.array(kfolds_dice))
+    print(f'Results over folds are stored in {args.dest}/kfold_dice_scores.npy and {args.dest}/kfold_results.txt')
 
 def set_seed(seed: int = 42):
     np.random.seed(seed)
