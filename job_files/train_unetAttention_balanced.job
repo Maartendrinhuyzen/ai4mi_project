@@ -1,0 +1,29 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu              # Use the GPU partition
+#SBATCH --gpus=1                     # Request one GPU
+#SBATCH --job-name=train_unet        # Name of the job
+#SBATCH --ntasks=1                   # Run on a single task
+#SBATCH --cpus-per-task=18           # Allocate 18 CPUs for this task
+#SBATCH --time=01:00:00              # Set a time limit of 1 hour
+#SBATCH --output=output/unet_attention_train%A.out  # Output file for this job
+
+module purge                          # Clean the environment
+module load 2022                      # Load the appropriate module environment
+module load Anaconda3/2022.05          # Load Anaconda module
+
+# Change to the directory where the project is located
+cd $HOME/ai4mi_project
+
+# Activate the virtual environment
+source ai4mi/bin/activate
+
+# Execute the Python script with the specified arguments
+srun python -O main.py --dataset SEGTHOR_transformed \
+                      --mode balanced \
+                      --epoch 25 \
+                      --dest results/unet_attention/ce \
+                      --gpu \
+                      --model UNetAttention \
+                      --k_folds 2
+                    

@@ -41,6 +41,7 @@ from dataset import SliceDataset
 from ShallowNet import shallowCNN
 from ENet import ENet
 from Unet import UNet
+from UnetAttention import UNetAttention
 from utils import (Dcm,
                    class2one_hot,
                    probs2one_hot,
@@ -103,7 +104,8 @@ datasets_params["SEGTHOR_transformed"] = {'K': 5, 'B': 8}
 models = {
     "shallowCNN": shallowCNN,
     "ENet": ENet,
-    "UNet": UNet
+    "UNet": UNet,
+    "UNetAttention": UNetAttention
 }
 
 def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
@@ -374,7 +376,7 @@ def main():
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logic around epochs and logging easily.")
                              
-    parser.add_argument('--hyper_parameter', type=float, default=None,
+    parser.add_argument('--hyper_parameter', type=float, default=1e-5,
                         help="The hyperparameter to tune")
     parser.add_argument('--k_folds', type=int, default=2,
                         help="specify k folds")
