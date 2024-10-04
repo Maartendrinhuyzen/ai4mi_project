@@ -207,10 +207,10 @@ def runTraining(args):
         log_dice_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))
         log_loss_val = torch.zeros((args.epochs, len(val_loader)))
         log_dice_val = torch.zeros((args.epochs, len(val_loader.dataset), K))
-        log_iou_tra = torch.zeros((args.epochs, len(train_loader)))  # IoU during training
-        log_iou_val = torch.zeros((args.epochs, len(val_loader)))    # IoU during validation
-        log_ahd_tra = torch.zeros((args.epochs, len(train_loader)))  # AHD during training
-        log_ahd_val = torch.zeros((args.epochs, len(val_loader)))    # AHD during validation
+        # log_iou_tra = torch.zeros((args.epochs, len(train_loader)))  # IoU during training
+        # log_iou_val = torch.zeros((args.epochs, len(val_loader)))    # IoU during validation
+        # log_ahd_tra = torch.zeros((args.epochs, len(train_loader)))  # AHD during training
+        # log_ahd_val = torch.zeros((args.epochs, len(val_loader)))    # AHD during validation
 
         current_fold_dice = []
         for e in range(args.epochs):
@@ -224,8 +224,8 @@ def runTraining(args):
                         loader = train_loader
                         log_loss = log_loss_tra
                         log_dice = log_dice_tra
-                        log_iou = log_iou_tra
-                        log_ahd = log_ahd_tra
+                        # log_iou = log_iou_tra
+                        # log_ahd = log_ahd_tra
                     case 'val':
                         net.eval()
                         opt = None
@@ -234,8 +234,8 @@ def runTraining(args):
                         loader = val_loader
                         log_loss = log_loss_val
                         log_dice = log_dice_val
-                        log_iou = log_iou_val
-                        log_ahd = log_ahd_val
+                        # log_iou = log_iou_val
+                        # log_ahd = log_ahd_val
 
                 with cm():  # Either dummy context manager or torch.no_grad for validation
                     j = 0
@@ -260,18 +260,18 @@ def runTraining(args):
                         log_dice[e, j:j + B, :] = dice_coef(gt, pred_seg)  # One DSC value per sample and per class
 
                         # Compute IoU
-                        for b in range(B):
-                            for k in range(K):
-                                intersection_area = intersection(pred_seg[b, k], gt[b, k])
-                                union_area = union(pred_seg[b, k], gt[b, k])
-                                iou = intersection_area / (union_area + 1e-8)
-                                log_iou[e, j + b, k] = iou
+                        # for b in range(B):
+                        #     for k in range(K):
+                        #         intersection_area = intersection(pred_seg[b, k], gt[b, k])
+                        #         union_area = union(pred_seg[b, k], gt[b, k])
+                        #         iou = intersection_area / (union_area + 1e-8)
+                        #         log_iou[e, j + b, k] = iou
                         
                         # Compute Hausdorff Distance
-                        for b in range(B):
-                            for k in range(K):
-                                ahd = average_hausdorff_distance(pred_seg[b, k], gt[b, k])
-                                log_ahd[e, j + b, k] = ahd
+                        # for b in range(B):
+                        #     for k in range(K):
+                        #         ahd = average_hausdorff_distance(pred_seg[b, k], gt[b, k])
+                        #         log_ahd[e, j + b, k] = ahd
                         # Loss computation
                         loss = loss_fn(pred_probs, gt)
                         log_loss[e, i] = loss.item()
@@ -292,29 +292,29 @@ def runTraining(args):
                         # Update the progress bar with metrics
                         postfix_dict = {
                             "Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
-                            "Loss": f"{log_loss[e, :i + 1].mean():5.2e}",
-                            "IoU": f"{log_iou[e, :j, 1:].mean():05.3f}",
-                             "AHD": f"{log_ahd[e, :j, 1:].mean():05.3f}"
+                            "Loss": f"{log_loss[e, :i + 1].mean():5.2e}"#,
+                            # "IoU": f"{log_iou[e, :j, 1:].mean():05.3f}",
+                            #  "AHD": f"{log_ahd[e, :j, 1:].mean():05.3f}"
                              }
 
                         if K > 2:  # Multi-class case
                             postfix_dict |= {f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}" for k in range(1, K)
                                              }
-                            postfix_dict |= {f"IoU-{k}": f"{log_iou[e, :j, k].mean():05.3f}" for k in range(1, K)
-                                             }
-                            postfix_dict |= {f"AHD-{k}": f"{log_ahd[e, :j, k].mean():05.3f}" for k in range(1, K)
-                                             }
+                            # postfix_dict |= {f"IoU-{k}": f"{log_iou[e, :j, k].mean():05.3f}" for k in range(1, K)
+                            #                  }
+                            # postfix_dict |= {f"AHD-{k}": f"{log_ahd[e, :j, k].mean():05.3f}" for k in range(1, K)
+                            #                  }
                         tq_iter.set_postfix(postfix_dict)
 
             # Save the metrics at each epoch
             np.save(args.dest / "loss_tra.npy", log_loss_tra)
             np.save(args.dest / "dice_tra.npy", log_dice_tra)
-            np.save(args.dest / "iou_tra.npy", log_iou_tra)
-            np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
+            # np.save(args.dest / "iou_tra.npy", log_iou_tra)
+            # np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
             np.save(args.dest / "loss_val.npy", log_loss_val)
             np.save(args.dest / "dice_val.npy", log_dice_val)
-            np.save(args.dest / "iou_val.npy", log_iou_val)
-            np.save(args.dest / "ahd_val.npy", log_ahd_val)
+            # np.save(args.dest / "iou_val.npy", log_iou_val)
+            # np.save(args.dest / "ahd_val.npy", log_ahd_val)
 
             # Track best Dice score
             current_dice = log_dice_val[e, :, 1:].mean().item()
@@ -376,6 +376,9 @@ def main():
                              
     parser.add_argument('--hyper_parameter', type=float, default=None,
                         help="The hyperparameter to tune")
+    parser.add_argument('--k_folds', type=int, default=2,
+                        help="specify k folds")
+
 
     args = parser.parse_args()
 

@@ -6,7 +6,7 @@
 #SBATCH --ntasks=1                 # Run on a single task
 #SBATCH --cpus-per-task=18         # Number of CPU cores per task
 #SBATCH --time=02:00:00            # Job run time limit
-#SBATCH --output=output/train_transform_%A.out  # Output file
+#SBATCH --output=output/affine_transform_%A.out  # Output file
 
 module purge
 module load 2022                    # Load necessary modules
@@ -34,6 +34,12 @@ srun python affine.py --data_dir "$DATA_DIR" \
 # Step 2: Slice the transformed files
 SOURCE_DIR="$HOME/ai4mi_project/data/segthor_train"
 DEST_DIR="$HOME/ai4mi_project/data/SEGTHOR_transformed"
+
+# Check if the destination directory exists, if so remove it
+if [ -d "$DEST_DIR" ]; then
+    echo "Directory $DEST_DIR already exists. Removing it..."
+    rm -rf "$DEST_DIR"
+fi
 
 echo "Slicing transformed files..."
 srun python slice_segthor.py --source_dir "$SOURCE_DIR" \

@@ -139,7 +139,13 @@ def apply_affine_transform_to_heart(input_image_path, output_image_path, transfo
     
     # Reintegrate the transformed heart back into the original segmentation
     output_array = input_array.copy()
+
+    # Clear the original heart region (class 2) in the output_array
+    output_array[output_array == heart_label] = 0
+
+    # Insert the transformed heart into the cleared region
     output_array[transformed_heart_array == 1] = heart_label
+
     
     # Convert the output array back to a SimpleITK image
     output_image = sitk.GetImageFromArray(output_array)

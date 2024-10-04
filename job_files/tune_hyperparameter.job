@@ -45,7 +45,7 @@ srun python -O main.py \
     --model UNet \
     --num_workers 5 \
     --hyper_parameter "$VALUE" \
-    --gpu
+    --gpu \
 
 echo "[$(date)] Completed training with $HYPER_PARAM_NAME: $VALUE"
 echo "----------------------------------------------"
