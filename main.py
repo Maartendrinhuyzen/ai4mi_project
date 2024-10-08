@@ -95,7 +95,6 @@ def calculate_class_weights(frequencies: list[float], alpha: float = 1.0) -> lis
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
 # Avoids the clases with C (often used for the number of Channel)
-datasets_params: dict[str, dict[str, Any]] = {}
 datasets_params["TOY2"] = {'K': 2, 'B': 2}
 datasets_params["SEGTHOR"] = {'K': 5, 'B': 8}
 datasets_params["SEGTHOR_transformed"] = {'K': 5, 'B': 8}
@@ -122,7 +121,6 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     # Use the hyper parameter from arguments
     lr = args.hyper_parameter
     optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)   
-    #optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
 
     # Dataset part
     B: int = datasets_params[args.dataset]['B']
@@ -209,10 +207,10 @@ def runTraining(args):
         log_dice_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))
         log_loss_val = torch.zeros((args.epochs, len(val_loader)))
         log_dice_val = torch.zeros((args.epochs, len(val_loader.dataset), K))
-        # log_iou_tra = torch.zeros((args.epochs, len(train_loader)))  # IoU during training
-        # log_iou_val = torch.zeros((args.epochs, len(val_loader)))    # IoU during validation
-        # log_ahd_tra = torch.zeros((args.epochs, len(train_loader)))  # AHD during training
-        # log_ahd_val = torch.zeros((args.epochs, len(val_loader)))    # AHD during validation
+        log_iou_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))  # Adjusted to match total dataset size
+        log_iou_val = torch.zeros((args.epochs, len(val_loader.dataset), K))    # Adjusted to match total dataset size
+        log_ahd_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))  # AHD during training
+        log_ahd_val = torch.zeros((args.epochs, len(val_loader.dataset), K))    # AHD during validation
 
         current_fold_dice = []
         for e in range(args.epochs):
@@ -226,8 +224,8 @@ def runTraining(args):
                         loader = train_loader
                         log_loss = log_loss_tra
                         log_dice = log_dice_tra
-                        # log_iou = log_iou_tra
-                        # log_ahd = log_ahd_tra
+                        log_iou = log_iou_tra
+                        log_ahd = log_ahd_tra
                     case 'val':
                         net.eval()
                         opt = None
@@ -236,8 +234,8 @@ def runTraining(args):
                         loader = val_loader
                         log_loss = log_loss_val
                         log_dice = log_dice_val
-                        # log_iou = log_iou_val
-                        # log_ahd = log_ahd_val
+                        log_iou = log_iou_val
+                        log_ahd = log_ahd_val
 
                 with cm():  # Either dummy context manager or torch.no_grad for validation
                     j = 0
@@ -262,18 +260,32 @@ def runTraining(args):
                         log_dice[e, j:j + B, :] = dice_coef(gt, pred_seg)  # One DSC value per sample and per class
 
                         # Compute IoU
-                        # for b in range(B):
-                        #     for k in range(K):
-                        #         intersection_area = intersection(pred_seg[b, k], gt[b, k])
-                        #         union_area = union(pred_seg[b, k], gt[b, k])
-                        #         iou = intersection_area / (union_area + 1e-8)
-                        #         log_iou[e, j + b, k] = iou
-                        
+                        for b in range(B):
+                            for k in range(K):
+                                pred_seg_flat = pred_seg[b, k].view(-1)
+                                gt_flat = gt[b, k].view(-1)
+
+                                # Perform intersection and union by summing over the flattened tensors
+                                intersection_area = torch.sum(pred_seg_flat * gt_flat).float()  
+                                union_area = torch.sum(pred_seg_flat).float() + torch.sum(gt_flat).float() - intersection_area  
+
+                                # Compute IoU and make it scalar
+                                iou = (intersection_area / (union_area + 1e-8)).item()
+
+                                total_samples = len(train_loader.dataset) if m == 'train' else len(val_loader.dataset)
+                                index = min(i * B + b, total_samples - 1)
+
+                                log_iou[e, index, k] = iou
+                                
                         # Compute Hausdorff Distance
-                        # for b in range(B):
-                        #     for k in range(K):
-                        #         ahd = average_hausdorff_distance(pred_seg[b, k], gt[b, k])
-                        #         log_ahd[e, j + b, k] = ahd
+                        for b in range(B):
+                            for k in range(K):
+                                pred_np = pred_seg[b, k].cpu().numpy()  
+                                gt_np = gt[b, k].cpu().numpy()  
+                                
+                                ahd = average_hausdorff_distance(pred_np, gt_np)
+                                log_ahd[e, index, k] = ahd
+
                         # Loss computation
                         loss = loss_fn(pred_probs, gt)
                         log_loss[e, i] = loss.item()
@@ -294,29 +306,29 @@ def runTraining(args):
                         # Update the progress bar with metrics
                         postfix_dict = {
                             "Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
-                            "Loss": f"{log_loss[e, :i + 1].mean():5.2e}"#,
-                            # "IoU": f"{log_iou[e, :j, 1:].mean():05.3f}",
-                            #  "AHD": f"{log_ahd[e, :j, 1:].mean():05.3f}"
+                            "Loss": f"{log_loss[e, :i + 1].mean():5.2e}",
+                            "IoU": f"{log_iou[e, :j, 1:].mean():05.3f}",
+                            "AHD": f"{log_ahd[e, :j, 1:].mean():05.3f}"
                              }
 
                         if K > 2:  # Multi-class case
                             postfix_dict |= {f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}" for k in range(1, K)
                                              }
-                            # postfix_dict |= {f"IoU-{k}": f"{log_iou[e, :j, k].mean():05.3f}" for k in range(1, K)
-                            #                  }
-                            # postfix_dict |= {f"AHD-{k}": f"{log_ahd[e, :j, k].mean():05.3f}" for k in range(1, K)
-                            #                  }
+                            postfix_dict |= {f"IoU-{k}": f"{log_iou[e, :j, k].mean():05.3f}" for k in range(1, K)
+                                             }
+                            postfix_dict |= {f"AHD-{k}": f"{log_ahd[e, :j, k].mean():05.3f}" for k in range(1, K)
+                                             }
                         tq_iter.set_postfix(postfix_dict)
 
             # Save the metrics at each epoch
             np.save(args.dest / "loss_tra.npy", log_loss_tra)
             np.save(args.dest / "dice_tra.npy", log_dice_tra)
-            # np.save(args.dest / "iou_tra.npy", log_iou_tra)
-            # np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
+            np.save(args.dest / "iou_tra.npy", log_iou_tra)
+            np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
             np.save(args.dest / "loss_val.npy", log_loss_val)
             np.save(args.dest / "dice_val.npy", log_dice_val)
-            # np.save(args.dest / "iou_val.npy", log_iou_val)
-            # np.save(args.dest / "ahd_val.npy", log_ahd_val)
+            np.save(args.dest / "iou_val.npy", log_iou_val)
+            np.save(args.dest / "ahd_val.npy", log_ahd_val)
 
             # Track best Dice score
             current_dice = log_dice_val[e, :, 1:].mean().item()
@@ -354,7 +366,6 @@ def set_seed(seed: int = 42):
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-    # Ensures deterministic behavior for CUDA operations
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
