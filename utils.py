@@ -179,39 +179,20 @@ def union(a: Tensor, b: Tensor) -> Tensor:
     return res
 
 def average_hausdorff_distance(pred, gt):
-    """
-    Compute the average Hausdorff distance between the predicted and ground truth segmentation.
+    """Compute the average Hausdorff distance between the predicted and ground truth masks."""
     
-    Args:
-    - pred: Predicted segmentation (numpy array).
-    - gt: Ground truth segmentation (numpy array).
-    
-    Returns:
-    - Average Hausdorff distance between the two segmentations.
-    """
-    # Ensure pred and gt are binary masks of the same shape
-    assert pred.shape == gt.shape, "Shape mismatch between prediction and ground truth."
+    # Convert PyTorch tensors to NumPy arrays
+    if isinstance(pred, torch.Tensor):
+        pred = pred.cpu().numpy()
+    if isinstance(gt, torch.Tensor):
+        gt = gt.cpu().numpy()
 
-    # Initialize a list to store Hausdorff distances for each slice
-    hausdorff_distances = []
+    # Ensure that we are working with boolean arrays
+    pred = pred.astype(np.bool_)
+    gt = gt.astype(np.bool_)
 
-    # Compute Hausdorff distance slice by slice (assuming the last axis is the depth)
-    for slice_idx in range(pred.shape[-1]):  # Loop over the depth
-        pred_slice = pred[..., slice_idx].astype(np.bool_)
-        gt_slice = gt[..., slice_idx].astype(np.bool_)
-        
-        # Flatten the slices into 2D arrays of coordinates
-        pred_coords = np.column_stack(np.where(pred_slice))
-        gt_coords = np.column_stack(np.where(gt_slice))
+    # Compute Hausdorff distance using scipy
+    hausdorff_distance_1 = directed_hausdorff(pred, gt)[0]
+    hausdorff_distance_2 = directed_hausdorff(gt, pred)[0]
 
-        if len(pred_coords) == 0 or len(gt_coords) == 0:
-            # If either segmentation has no positive points in this slice, set distance to 0
-            hausdorff_distances.append(0)
-        else:
-            # Compute directed Hausdorff distance in both directions and take the maximum
-            hd = max(directed_hausdorff(pred_coords, gt_coords)[0],
-                     directed_hausdorff(gt_coords, pred_coords)[0])
-            hausdorff_distances.append(hd)
-
-    # Return the average Hausdorff distance across all slices
-    return np.mean(hausdorff_distances)
+    return max(hausdorff_distance_1, hausdorff_distance_2)
