@@ -338,6 +338,7 @@ def runTraining(args):
 
     # After completing all folds:
     mean_dice = np.mean(kfolds_dice)
+    
     print(f">>> Mean Dice across all folds: {mean_dice:05.3f}")
 
     # Save the mean dice score to a file
