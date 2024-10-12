@@ -51,7 +51,8 @@ from utils import (Dcm,
                    save_images,
                    average_hausdorff_distance,
                    intersection,
-                   union)
+                   union,
+                   torch2D_Hausdorff_distance)
 
 from losses import (CrossEntropy,
                    BalancedCrossEntropy,
@@ -328,14 +329,12 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                             index = min(i * B + b, total_samples - 1)
 
                             log_iou[e, index, k] = iou
-                            
-                    # Compute Hausdorff Distance
+                    
                     for b in range(B):
                         for k in range(K):
-                            pred_np = pred_seg[b, k].cpu().numpy()  
-                            gt_np = gt[b, k].cpu().numpy()  
-                            
-                            ahd = average_hausdorff_distance(pred_np, gt_np)
+                            pred_seg_batch = pred_seg[b, k].unsqueeze(0)  # Shape becomes [1, H, W]
+                            gt_batch = gt[b, k].unsqueeze(0) 
+                            ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
                             log_ahd[e, index, k] = ahd
 
                     # Loss computation
