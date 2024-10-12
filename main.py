@@ -119,9 +119,13 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     net.to(device)
 
     # Use the hyper parameter from arguments
-    lr = args.hyper_parameter
-    optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)   
-
+    lr = args.hyper_parameter # Original learning rate: lr = 0.0005
+    if args.optimizer == 'Adam':
+        # Original optimizer
+        optimizer = torch.optim.Adam(net.parameters(), lr=lr, betas=(0.9, 0.999))
+    elif args.optimizer == 'AdamW':
+        optimizer = torch.optim.AdamW(net.parameters(), lr=lr, betas=(0.9, 0.999), weight_decay=1e-5)
+   
     # Dataset part
     B: int = datasets_params[args.dataset]['B']
     root_dir = Path("data") / args.dataset
@@ -158,7 +162,7 @@ def setup(args) -> tuple[nn.Module, Any, Any, DataLoader, DataLoader, int]:
     return (net, optimizer, device, full_set, full_loader, K)
 
 def runTraining(args):
-    print(f">>> Setting up to train on {args.dataset} with {args.mode}")
+    print(f">>> Setting up to train on {args.dataset} with {args.mode} and {args.optimizer}")
     net, optimizer, device, full_set, _, K = setup(args)
 
     best_dice = 0
@@ -387,7 +391,8 @@ def main():
     parser.add_argument('--debug', action='store_true',
                         help="Keep only a fraction (10 samples) of the datasets, "
                              "to test the logic around epochs and logging easily.")
-                             
+    parser.add_argument('--optimizer', default='AdamW', choices=['Adam','AdamW'],
+                        help="Choose the optimizer to use from Adam or AdamW")                         
     parser.add_argument('--hyper_parameter', type=float, default=1e-5,
                         help="The hyperparameter to tune")
     parser.add_argument('--k_folds', type=int, default=2,
