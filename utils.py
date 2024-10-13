@@ -226,7 +226,7 @@ def collect_patient_slices(patient_slices, img_paths, pred_seg, gt, B):
         # Initialize an entry for a new patient in the dictionary if not already present
         if patient_id not in patient_slices:
             patient_slices[patient_id] = {'pred_slices': [], 'gt_slices': []}
-
+    
         # Append the current prediction and ground truth slice to the corresponding patient
         patient_slices[patient_id]['pred_slices'].append(pred_seg[b].cpu())  # Storing the prediction slice
         patient_slices[patient_id]['gt_slices'].append(gt[b].cpu())  # Storing the ground truth slice
