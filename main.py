@@ -52,7 +52,9 @@ from utils import (Dcm,
                    average_hausdorff_distance,
                    intersection,
                    union,
-                   torch2D_Hausdorff_distance)
+                   torch2D_Hausdorff_distance, 
+                   collect_patient_slices,
+                   calculate_3d_dice)
 
 from losses import (CrossEntropy,
                    BalancedCrossEntropy,
@@ -293,9 +295,11 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
             with cm():  # Either dummy context manager or torch.no_grad for validation
                 j = 0
                 tq_iter = tqdm_(enumerate(loader), total=len(loader), desc=desc)
+                patient_slices = {}
                 for i, data in tq_iter:
                     img = data['images'].to(device)
                     gt = data['gts'].to(device)
+                    img_paths = [image_path.split('_')[1] for image_path in data['stems']]
 
                     if opt:  # Only for training
                         opt.zero_grad()
@@ -310,6 +314,10 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
 
                     # For each sample in the batch
                     pred_seg = probs2one_hot(pred_probs)
+
+                    # Inside the batch loop
+                    patient_slices = collect_patient_slices(patient_slices, img_paths, pred_seg, gt, B)
+                        
                     log_dice[e, j:j + B, :] = dice_coef(gt, pred_seg)  # One DSC value per sample and per class
 
                     # Compute IoU
@@ -371,6 +379,7 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                                          }
                     tq_iter.set_postfix(postfix_dict)
 
+        log_3d_dice = calculate_3d_dice(patient_slices)
         # Save the metrics at each epoch
         np.save(args.dest / "loss_tra.npy", log_loss_tra)
         np.save(args.dest / "dice_tra.npy", log_dice_tra)
@@ -380,7 +389,8 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         np.save(args.dest / "dice_val.npy", log_dice_val)
         np.save(args.dest / "iou_val.npy", log_iou_val)
         np.save(args.dest / "ahd_val.npy", log_ahd_val)
-
+        np.save(args.dest / "log_3d_dice.npy", np.array(log_3d_dice))
+        
         # Track best Dice score
         current_dice = log_dice_val[e, :, 1:].mean().item()
         if current_dice > best_dice:

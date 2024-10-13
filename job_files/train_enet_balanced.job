@@ -17,4 +17,4 @@ cd $HOME/ai4mi_project
 # Activate your environment
 source ai4mi/bin/activate
 # Run your code
-srun python -O main.py --dataset SEGTHOR_transformed --mode balanced --epoch 25 --dest results/enet_balanced/ce --gpu --model ENet
+srun python -O main.py --dataset SEGTHOR_transformed --mode balanced --epoch 1 --dest results/enet_balanced/ce --gpu --model ENet --k_folds 3

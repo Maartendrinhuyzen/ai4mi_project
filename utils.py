@@ -196,3 +196,67 @@ def average_hausdorff_distance(pred, gt):
     hausdorff_distance_2 = directed_hausdorff(gt, pred)[0]
 
     return max(hausdorff_distance_1, hausdorff_distance_2)
+
+def torch2D_Hausdorff_distance(x,y): # Input be like (Batch,width,height)
+    x = x.float()
+    y = y.float()
+    distance_matrix = torch.cdist(x,y,p=2) # p=2 means Euclidean Distance
+    
+    value1 = distance_matrix.min(2)[0].max(1, keepdim=True)[0]
+    value2 = distance_matrix.min(1)[0].max(1, keepdim=True)[0]
+    
+    value = torch.cat((value1, value2), dim=1)
+    
+    return value.max(1)[0]
+
+def collect_patient_slices(patient_slices, img_paths, pred_seg, gt, B):
+    """
+    Collects and stores prediction and ground truth slices for each patient.
+    
+    Args:
+    - patient_slices: Dictionary to store slices for each patient.
+    - img_paths: List of image paths to extract patient IDs.
+    - pred_seg: Predicted segmentation slices.
+    - gt: Ground truth slices.
+    - B: Batch size.
+    """
+    for b in range(B):  # Iterate over the batch
+        patient_id = img_paths[b]  # Extract patient ID from the image path (e.g., 'Patient_03')
+
+        # Initialize an entry for a new patient in the dictionary if not already present
+        if patient_id not in patient_slices:
+            patient_slices[patient_id] = {'pred_slices': [], 'gt_slices': []}
+
+        # Append the current prediction and ground truth slice to the corresponding patient
+        patient_slices[patient_id]['pred_slices'].append(pred_seg[b].cpu())  # Storing the prediction slice
+        patient_slices[patient_id]['gt_slices'].append(gt[b].cpu())  # Storing the ground truth slice
+
+    return patient_slices
+
+def calculate_3d_dice(patient_slices):
+    """
+    Computes the 3D Dice score for each patient and logs the results.
+
+    Args:
+    - patient_slices: Dictionary containing prediction and ground truth slices for each patient.
+    - log_3d_dice: List to store 3D Dice scores.
+
+    Returns:
+    - 3d_dices: Numpy array containing 3D Dice scores for each patient.
+    """
+    num_patients = len(patient_slices)
+    dices_3d = np.zeros(num_patients)  # Initialize array to store 3D Dice scores for each patient
+
+    for idx, (patient_id, slices) in enumerate(patient_slices.items()):
+        if len(slices['pred_slices']) > 1:  # Ensure we have more than one slice to create a 3D volume
+            # Convert the list of slices into a 3D tensor
+            pred_volume = torch.stack(slices['pred_slices'], dim=-1)
+            gt_volume = torch.stack(slices['gt_slices'], dim=-1)
+
+            # Calculate 3D Dice
+            dice_3d = dice_coef(gt_volume, pred_volume).mean().item()
+
+            # Log 3D Dice for the patient
+            dices_3d[idx] = dice_3d
+
+    return dices_3d
