@@ -38,6 +38,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from dataset import SliceDataset
+import pickle
 from ShallowNet import shallowCNN
 from ENet import ENet
 from Unet import UNet
@@ -101,7 +102,6 @@ datasets_params: dict[str, dict[str, Any]] = {}
 datasets_params["TOY2"] = {'K': 2, 'B': 2}
 datasets_params["SEGTHOR"] = {'K': 5, 'B': 8}
 datasets_params["SEGTHOR_transformed"] = {'K': 5, 'B': 8}
-
 
 models = {
     "shallowCNN": shallowCNN,
@@ -267,10 +267,12 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
     log_ahd_val = torch.zeros((args.epochs, len(val_loader.dataset), K))    # AHD during validation
 
     loss_fn = get_loss_fn(args, train_loader, K)
-
+    log_3d_dice_val = {}
+    log_3d_dice_tra = {}
     for e in range(args.epochs):
         patient_slices_tra = {}
         patient_slices_val = {}
+        
         for m in ['train', 'val']:
             match m:
                 case 'train':
@@ -388,8 +390,8 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         # patient_slices = {'Patient03': {'pred_slices': [], 'gt_slices': []},
         #                   'Patient04': {'pred_slices': [], 'gt_slices': []},
         #                   ...}
-        log_3d_dice_val = calculate_3d_dice(patient_slices_val)
-        log_3d_dice_tra = calculate_3d_dice(patient_slices_tra)
+        log_3d_dice_val[e] = calculate_3d_dice(patient_slices_val)
+        log_3d_dice_tra[e] = calculate_3d_dice(patient_slices_tra)
         # Save the metrics at each epoch
         np.save(args.dest / "loss_tra.npy", log_loss_tra)
         np.save(args.dest / "dice_tra.npy", log_dice_tra)
@@ -399,8 +401,12 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         np.save(args.dest / "dice_val.npy", log_dice_val)
         np.save(args.dest / "iou_val.npy", log_iou_val)
         np.save(args.dest / "ahd_val.npy", log_ahd_val)
-        np.save(args.dest / "log_3d_dice_val.npy", np.array(log_3d_dice_val))
-        np.save(args.dest / "log_3d_dice_tra.npy", np.array(log_3d_dice_tra))
+        # np.save(args.dest / "log_3d_dice_val.npy", np.array(log_3d_dice_val))
+        # np.save(args.dest / "log_3d_dice_tra.npy", np.array(log_3d_dice_tra))
+        with open(args.dest / 'log_3d_dice_val.pkl', 'wb') as f:
+            pickle.dump(log_3d_dice_val, f)
+        with open(args.dest / 'log_3d_dice_tra.pkl', 'wb') as f:
+            pickle.dump(log_3d_dice_tra, f)
 
         # Track best Dice score
         current_dice = log_dice_val[e, :, 1:].mean().item()
@@ -421,13 +427,14 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
     return best_dice
 
 def set_seed(seed: int = 42):
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    # np.random.seed(seed)
+    # torch.manual_seed(seed)
+    # if torch.cuda.is_available():
+    #     torch.cuda.manual_seed(seed)
+    #     torch.cuda.manual_seed_all(seed)
+    # torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.benchmark = False
+    pass
 
 def main():
     set_seed(42)

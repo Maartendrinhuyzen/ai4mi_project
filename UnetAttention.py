@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
-# Attention Block definition
+# Attention Block definition with attention map saving
 class AttentionBlock(nn.Module):
     def __init__(self, F_g, F_l, F_int):
         super(AttentionBlock, self).__init__()
@@ -23,17 +24,17 @@ class AttentionBlock(nn.Module):
         )
         
         self.relu = nn.ReLU(inplace=True)
+        self.attention_map = None  # Placeholder to store attention map
     
     def forward(self, g, x):
         g1 = self.W_g(g)
         x1 = self.W_x(x)
         psi = self.relu(g1 + x1)
-        psi = self.psi(psi)
-        return x * psi
+        self.attention_map = self.psi(psi)  # Store attention map
+        return x * self.attention_map
 
 # Double convolution block definition
 class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
     def __init__(self, in_channels, out_channels, mid_channels=None):
         super().__init__()
         if not mid_channels:
@@ -52,7 +53,6 @@ class DoubleConv(nn.Module):
 
 # Downscaling block definition
 class Down(nn.Module):
-    """Downscaling with maxpool then double conv"""
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
@@ -65,7 +65,6 @@ class Down(nn.Module):
 
 # Upscaling block with attention
 class UpWithAttention(nn.Module):
-    """Upscaling then double conv, with attention"""
     def __init__(self, in_channels, out_channels, bilinear=True):
         super(UpWithAttention, self).__init__()
 
@@ -99,7 +98,7 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
-# Full U-Net with Attention model definition
+# Full U-Net with Attention model definition and attention map visualization
 class UNetAttention(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=False):
         super(UNetAttention, self).__init__()
@@ -139,3 +138,18 @@ class UNetAttention(nn.Module):
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.normal_(m.weight, 1.0, 0.02)
                 nn.init.constant_(m.bias, 0)
+
+    # Method to visualize attention map
+    def visualize_attention(self, attention_map, original_image):
+        # Resize attention map to original image size
+        attention_map_resized = F.interpolate(attention_map.unsqueeze(0), size=(original_image.shape[1], original_image.shape[2]), mode='bilinear', align_corners=False).squeeze(0)
+        
+        # Normalize attention map for better visualization
+        attention_map_resized = (attention_map_resized - attention_map_resized.min()) / (attention_map_resized.max() - attention_map_resized.min())
+        
+        plt.imshow(original_image.cpu().squeeze(), cmap='gray')
+        plt.imshow(attention_map_resized.cpu().detach().numpy(), cmap='jet', alpha=0.5)
+        plt.title('Attention Map Overlay')
+        plt.show()
+
+

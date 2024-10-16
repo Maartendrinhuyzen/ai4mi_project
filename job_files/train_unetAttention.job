@@ -20,10 +20,10 @@ source ai4mi/bin/activate
 
 # Execute the Python script with the specified arguments
 srun python -O main.py --dataset SEGTHOR_transformed \
-                      --mode balanced \
+                      --mode combined \
                       --epoch 25 \
-                      --dest results/unet_attention_5folds/ce \
+                      --dest results/unet_attention2/ce \
                       --gpu \
                       --model UNetAttention \
-                      --k_folds 5
+                      --k_folds 1
                     
