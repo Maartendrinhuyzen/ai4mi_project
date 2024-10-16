@@ -320,7 +320,7 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                     pred_seg = probs2one_hot(pred_probs)
 
                     # Inside the batch loop
-                    if m == 'valid':
+                    if m == 'val':
                         patient_slices_val = collect_patient_slices(patient_slices_val, img_paths, pred_seg, gt, B)
                     else:
                         patient_slices_tra = collect_patient_slices(patient_slices_tra, img_paths, pred_seg, gt, B)

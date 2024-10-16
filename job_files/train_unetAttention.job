@@ -22,7 +22,7 @@ source ai4mi/bin/activate
 srun python -O main.py --dataset SEGTHOR_transformed \
                       --mode combined \
                       --epoch 25 \
-                      --dest results/unet_attention2/ce \
+                      --dest results/unet_attention3/ce \
                       --gpu \
                       --model UNetAttention \
                       --k_folds 1
