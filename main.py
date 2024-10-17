@@ -55,7 +55,9 @@ from utils import (Dcm,
                    union,
                    torch2D_Hausdorff_distance, 
                    collect_patient_slices,
-                   calculate_3d_dice)
+                   calculate_3d_dice,
+                   calculate_3d_iou,
+                   calculate_3d_hausdorff)
 
 from losses import (CrossEntropy,
                    BalancedCrossEntropy,
@@ -269,6 +271,8 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
     loss_fn = get_loss_fn(args, train_loader, K)
     log_3d_dice_val = {}
     log_3d_dice_tra = {}
+    log_3d_iou_val = {}
+    log_3d_iou_tra = {}
     for e in range(args.epochs):
         patient_slices_tra = {}
         patient_slices_val = {}
@@ -392,6 +396,9 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         #                   ...}
         log_3d_dice_val[e] = calculate_3d_dice(patient_slices_val)
         log_3d_dice_tra[e] = calculate_3d_dice(patient_slices_tra)
+
+        log_3d_iou_val[e] = calculate_3d_iou(patient_slices_val)
+        log_3d_iou_tra[e] = calculate_3d_iou(patient_slices_tra)
         # Save the metrics at each epoch
         np.save(args.dest / "loss_tra.npy", log_loss_tra)
         np.save(args.dest / "dice_tra.npy", log_dice_tra)
@@ -408,6 +415,10 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         with open(args.dest / 'log_3d_dice_tra.pkl', 'wb') as f:
             pickle.dump(log_3d_dice_tra, f)
 
+        with open(args.dest / 'log_3d_iou_val.pkl', 'wb') as f:
+            pickle.dump(log_3d_iou_val, f)
+        with open(args.dest / 'log_3d_iou_tra.pkl', 'wb') as f:
+            pickle.dump(log_3d_iou_tra, f)    
         # Track best Dice score
         current_dice = log_dice_val[e, :, 1:].mean().item()
         if current_dice > best_dice:

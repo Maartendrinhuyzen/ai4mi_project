@@ -260,3 +260,32 @@ def calculate_3d_dice(patient_slices):
             dices_3d[idx] = dice_3d
 
     return dices_3d
+
+
+
+def calculate_3d_iou(patient_slices):
+    per_patient_iou = {}
+    for patient_id, slices_dict in patient_slices.items():
+        pred_slices = slices_dict['pred_slices']
+        gt_slices = slices_dict['gt_slices']
+
+        # Stack slices to form 3D volumes
+        pred_volume = torch.stack(pred_slices, dim=0)  # Shape: [D, K, W, H]
+        gt_volume = torch.stack(gt_slices, dim=0)      # Shape: [D, K, W, H]
+
+        # For each class, compute IoU
+        K = pred_volume.shape[1]
+        ious = []
+        for k in range(K):
+            pred_k = pred_volume[:, k].contiguous().view(-1)  # Flatten to 1D
+            gt_k = gt_volume[:, k].contiguous().view(-1)      # Flatten to 1D
+
+            intersection = torch.sum(pred_k * gt_k).float()
+            union = torch.sum(pred_k).float() + torch.sum(gt_k).float() - intersection
+
+            iou = (intersection / (union + 1e-8)).item()
+            ious.append(iou)
+
+        per_patient_iou[patient_id] = ious  # List of IoU per class
+
+    return per_patient_iou    
