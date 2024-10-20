@@ -71,6 +71,75 @@ from tqdm import tqdm
 from sklearn.model_selection import KFold
 
 
+import torch
+
+def percentile_hausdorff_distance(pred_seg, gt_seg, percentile=90):
+    """
+    Computes the percentile-based Hausdorff distance (e.g., 90th percentile).
+    
+    Parameters:
+    pred_seg (Tensor): Predicted segmentation, shape [1, H, W]
+    gt_seg (Tensor): Ground truth segmentation, shape [1, H, W]
+    percentile (float): Percentile to use, typically 90.
+    
+    Returns:
+    float: The percentile Hausdorff distance
+    """
+    # Get the boundary points of the predicted and ground truth segmentations
+    pred_boundary = get_boundary_points(pred_seg)
+    gt_boundary = get_boundary_points(gt_seg)
+    
+    # Compute pairwise distances between all boundary points
+    pred_to_gt_distances = compute_pairwise_distances(pred_boundary, gt_boundary)
+    gt_to_pred_distances = compute_pairwise_distances(gt_boundary, pred_boundary)
+    
+    # Concatenate the distances from both directions
+    all_distances = torch.cat([pred_to_gt_distances, gt_to_pred_distances])
+    
+    # Compute the desired percentile
+    hausdorff_percentile = torch.quantile(all_distances, percentile / 100.0).item()
+    
+    return hausdorff_percentile
+
+def get_boundary_points(seg):
+    """
+    Extracts boundary points from a binary segmentation mask.
+    
+    Parameters:
+    seg (Tensor): Binary segmentation mask, shape [1, H, W]
+    
+    Returns:
+    Tensor: Tensor of boundary points, shape [N, 2] where N is the number of boundary points.
+    """
+    # Using morphological operations to find the boundary
+    kernel = torch.ones((3, 3), dtype=torch.float32).to(seg.device)
+    seg_dilated = torch.nn.functional.conv2d(seg.unsqueeze(0).unsqueeze(0), kernel.unsqueeze(0).unsqueeze(0), padding=1)
+    boundary = seg_dilated - seg.unsqueeze(0).unsqueeze(0)
+    boundary = boundary.squeeze(0).squeeze(0)
+    
+    # Get the coordinates of the boundary points
+    boundary_points = torch.nonzero(boundary).float()
+    
+    return boundary_points
+
+def compute_pairwise_distances(points1, points2):
+    """
+    Computes pairwise Euclidean distances between two sets of points.
+    
+    Parameters:
+    points1 (Tensor): Tensor of shape [N, 2]
+    points2 (Tensor): Tensor of shape [M, 2]
+    
+    Returns:
+    Tensor: Pairwise distances of shape [N]
+    """
+    # Expand points and compute Euclidean distance
+    dists = torch.cdist(points1, points2, p=2)
+    
+    # Return the minimum distance for each point in points1 to points2
+    return dists.min(dim=1)[0]
+
+
 def count_class_occurrences(dataset: SliceDataset, num_classes: int) -> list[int]:
     class_occurrences = [0] * num_classes
     total_samples = len(dataset)
@@ -353,7 +422,8 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                         for k in range(K):
                             pred_seg_batch = pred_seg[b, k].unsqueeze(0)  # Shape becomes [1, H, W]
                             gt_batch = gt[b, k].unsqueeze(0) 
-                            ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
+                            # ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
+                            ahd = percentile_hausdorff_distance(pred_seg_batch, gt_batch, percentile=90)
                             log_ahd[e, index, k] = ahd
 
                     # Loss computation
