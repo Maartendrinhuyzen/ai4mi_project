@@ -74,7 +74,7 @@ def run_inference(args):
 
     n = len(loader)
     for i, data in enumerate(loader):
-        print(f"Running inference on image {i}/{n} ...")
+        print(f"Running inference on batch {i}/{n} ...")
         img = data['images'].to(device)
         img_paths = [image_path.split('_')[1] for image_path in data['stems']]
         assert 0 <= img.min() and img.max() <= 1
