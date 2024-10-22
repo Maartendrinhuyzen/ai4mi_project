@@ -139,7 +139,7 @@ def get_splits(src_path: Path, retains: int, fold: int) -> tuple[list[str], list
     ids: list[str] = sorted(map_(lambda p: p.name, (src_path / 'train').glob('*')))
     print(f"Founds {len(ids)} in the id list")
     print(ids[:10])
-    assert len(ids) > retains
+    assert len(ids) >= retains
 
     random.shuffle(ids)  # Shuffle before to avoid any problem if the patients are sorted in any way
     validation_slice = slice(fold * retains, (fold + 1) * retains)
