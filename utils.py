@@ -209,6 +209,8 @@ def torch2D_Hausdorff_distance(x,y): # Input be like (Batch,width,height)
     
     return value.max(1)[0]
 
+
+
 def collect_patient_slices(patient_slices, img_paths, pred_seg, gt, B):
     """
     Collects and stores prediction and ground truth slices for each patient.
@@ -260,6 +262,45 @@ def calculate_3d_dice(patient_slices):
             dices_3d[idx] = dice_3d
 
     return dices_3d
+
+import torch
+import numpy as np
+from scipy.spatial.distance import directed_hausdorff
+
+def calculate_3d_hausdorff(patient_slices):
+    """
+    Computes the 3D Hausdorff distance for each patient and logs the results.
+
+    Args:
+    - patient_slices: Dictionary containing prediction and ground truth slices for each patient.
+
+    Returns:
+    - hausdorff_distances: Numpy array containing 3D Hausdorff distances for each patient.
+    """
+    num_patients = len(patient_slices)
+    hausdorff_distances = np.zeros(num_patients)  # Initialize array to store 3D Hausdorff distances for each patient
+
+    for idx, (patient_id, slices) in enumerate(patient_slices.items()):
+        if len(slices['pred_slices']) > 1:  # Ensure we have more than one slice to create a 3D volume
+            # Convert the list of slices into a 3D tensor
+            pred_volume = torch.stack(slices['pred_slices'], dim=-1).cpu().numpy()  # Convert to numpy array
+            gt_volume = torch.stack(slices['gt_slices'], dim=-1).cpu().numpy()  # Convert to numpy array
+
+            # Get the coordinates of the boundary points (where the segmentation is positive)
+            pred_points = np.argwhere(pred_volume > 0)
+            gt_points = np.argwhere(gt_volume > 0)
+
+            # Calculate the directed Hausdorff distances
+            hausdorff_pred_to_gt = directed_hausdorff(pred_points, gt_points)[0]
+            hausdorff_gt_to_pred = directed_hausdorff(gt_points, pred_points)[0]
+
+            # Hausdorff distance is the maximum of the directed distances
+            hausdorff_distance = max(hausdorff_pred_to_gt, hausdorff_gt_to_pred)
+
+            # Log Hausdorff distance for the patient
+            hausdorff_distances[idx] = hausdorff_distance
+
+    return hausdorff_distances
 
 
 

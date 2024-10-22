@@ -422,8 +422,8 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                         for k in range(K):
                             pred_seg_batch = pred_seg[b, k].unsqueeze(0)  # Shape becomes [1, H, W]
                             gt_batch = gt[b, k].unsqueeze(0) 
-                            # ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
-                            ahd = percentile_hausdorff_distance(pred_seg_batch, gt_batch, percentile=90)
+                            ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
+                            # ahd = percentile_hausdorff_distance(pred_seg_batch, gt_batch, percentile=90)
                             log_ahd[e, index, k] = ahd
 
                     # Loss computation
