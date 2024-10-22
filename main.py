@@ -342,6 +342,8 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
     log_3d_dice_tra = {}
     log_3d_iou_val = {}
     log_3d_iou_tra = {}
+    log_3d_ahd_val = {}
+    log_3d_ahd_tra = {}
     for e in range(args.epochs):
         patient_slices_tra = {}
         patient_slices_val = {}
@@ -395,36 +397,37 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                     # Inside the batch loop
                     if m == 'val':
                         patient_slices_val = collect_patient_slices(patient_slices_val, img_paths, pred_seg, gt, B)
+
                     else:
                         patient_slices_tra = collect_patient_slices(patient_slices_tra, img_paths, pred_seg, gt, B)
 
                     log_dice[e, j:j + B, :] = dice_coef(gt, pred_seg)  # One DSC value per sample and per class
 
                     # Compute IoU
-                    for b in range(B):
-                        for k in range(K):
-                            pred_seg_flat = pred_seg[b, k].view(-1)
-                            gt_flat = gt[b, k].view(-1)
+                    # for b in range(B):
+                    #     for k in range(K):
+                    #         pred_seg_flat = pred_seg[b, k].view(-1)
+                    #         gt_flat = gt[b, k].view(-1)
 
-                            # Perform intersection and union by summing over the flattened tensors
-                            intersection_area = torch.sum(pred_seg_flat * gt_flat).float()  
-                            union_area = torch.sum(pred_seg_flat).float() + torch.sum(gt_flat).float() - intersection_area  
+                    #         # Perform intersection and union by summing over the flattened tensors
+                    #         intersection_area = torch.sum(pred_seg_flat * gt_flat).float()  
+                    #         union_area = torch.sum(pred_seg_flat).float() + torch.sum(gt_flat).float() - intersection_area  
 
-                            # Compute IoU and make it scalar
-                            iou = (intersection_area / (union_area + 1e-8)).item()
+                    #         # Compute IoU and make it scalar
+                    #         iou = (intersection_area / (union_area + 1e-8)).item()
 
-                            total_samples = len(train_loader.dataset) if m == 'train' else len(val_loader.dataset)
-                            index = min(i * B + b, total_samples - 1)
+                    #         total_samples = len(train_loader.dataset) if m == 'train' else len(val_loader.dataset)
+                    #         index = min(i * B + b, total_samples - 1)
 
-                            log_iou[e, index, k] = iou
+                    #         log_iou[e, index, k] = iou
                     
-                    for b in range(B):
-                        for k in range(K):
-                            pred_seg_batch = pred_seg[b, k].unsqueeze(0)  # Shape becomes [1, H, W]
-                            gt_batch = gt[b, k].unsqueeze(0) 
-                            ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
-                            # ahd = percentile_hausdorff_distance(pred_seg_batch, gt_batch, percentile=90)
-                            log_ahd[e, index, k] = ahd
+                    # for b in range(B):
+                    #     for k in range(K):
+                    #         pred_seg_batch = pred_seg[b, k].unsqueeze(0)  # Shape becomes [1, H, W]
+                    #         gt_batch = gt[b, k].unsqueeze(0) 
+                    #         ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
+                    #         # ahd = percentile_hausdorff_distance(pred_seg_batch, gt_batch, percentile=90)
+                    #         log_ahd[e, index, k] = ahd
 
                     # Loss computation
                     loss = loss_fn(pred_probs, gt)
@@ -464,22 +467,22 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         # patient_slices = {'Patient03': {'pred_slices': [], 'gt_slices': []},
         #                   'Patient04': {'pred_slices': [], 'gt_slices': []},
         #                   ...}
-        log_3d_dice_val[e] = calculate_3d_dice(patient_slices_val)
         log_3d_dice_tra[e] = calculate_3d_dice(patient_slices_tra)
-
-        log_3d_iou_val[e] = calculate_3d_iou(patient_slices_val)
         log_3d_iou_tra[e] = calculate_3d_iou(patient_slices_tra)
+
+        log_3d_dice_val[e] = calculate_3d_dice(patient_slices_val)
+        log_3d_iou_val[e] = calculate_3d_iou(patient_slices_val)
+        # log_3d_ahd_val[e] = calculate_3d_hausdorff(patient_slices_val)
+        # log_3d_ahd_tra[e] = calculate_3d_hausdorff(patient_slices_tra)
         # Save the metrics at each epoch
         np.save(args.dest / "loss_tra.npy", log_loss_tra)
         np.save(args.dest / "dice_tra.npy", log_dice_tra)
-        np.save(args.dest / "iou_tra.npy", log_iou_tra)
-        np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
+        # np.save(args.dest / "iou_tra.npy", log_iou_tra)
+        # np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
         np.save(args.dest / "loss_val.npy", log_loss_val)
         np.save(args.dest / "dice_val.npy", log_dice_val)
-        np.save(args.dest / "iou_val.npy", log_iou_val)
-        np.save(args.dest / "ahd_val.npy", log_ahd_val)
-        # np.save(args.dest / "log_3d_dice_val.npy", np.array(log_3d_dice_val))
-        # np.save(args.dest / "log_3d_dice_tra.npy", np.array(log_3d_dice_tra))
+        # np.save(args.dest / "iou_val.npy", log_iou_val)
+        # np.save(args.dest / "ahd_val.npy", log_ahd_val)
         with open(args.dest / 'log_3d_dice_val.pkl', 'wb') as f:
             pickle.dump(log_3d_dice_val, f)
         with open(args.dest / 'log_3d_dice_tra.pkl', 'wb') as f:
@@ -488,7 +491,11 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         with open(args.dest / 'log_3d_iou_val.pkl', 'wb') as f:
             pickle.dump(log_3d_iou_val, f)
         with open(args.dest / 'log_3d_iou_tra.pkl', 'wb') as f:
-            pickle.dump(log_3d_iou_tra, f)    
+            pickle.dump(log_3d_iou_tra, f)
+        # with open(args.dest / 'log_3d_ahd_val.pkl', 'wb') as f:
+        #     pickle.dump(log_3d_ahd_val, f)
+        # with open(args.dest / 'log_3d_ahd_tra.pkl', 'wb') as f:
+        #     pickle.dump(log_3d_ahd_tra, f)
         # Track best Dice score
         current_dice = log_dice_val[e, :, 1:].mean().item()
         if current_dice > best_dice:
