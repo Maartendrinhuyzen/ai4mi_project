@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gpus=1
+#SBATCH --job-name=inference
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --time=00:30:00
+#SBATCH --output=output/inference%A.out
+
+# Load necessary modules
+module purge
+module load 2022
+module load Anaconda3/2022.05
+
+# Change to the project directory
+cd $HOME/ai4mi_project
+
+# Activate the virtual environment
+source ai4mi/bin/activate
+
+# Specify the best model class
+MODEL=UNetAttention
+# specify .pt file for the best model
+PT_FILE=/home/scur2457/ai4mi_project/results/unet_attention/ce/bestweights.pt
+
+# Run the inference script
+srun python -O inference.py \
+    --dataset SEGTHOR_TESTSET \
+    --model $MODEL \
+    --weights $PT_FILE \
+    --dest results/inference-${MODEL} \
+    --gpu

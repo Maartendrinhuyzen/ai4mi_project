@@ -106,3 +106,60 @@ class SliceDataset(Dataset):
         return {"images": img,
                 "gts": gt,
                 "stems": img_path.stem}
+
+
+class SliceDatasetWithoutGT(Dataset):
+    """
+    A dataset class to load images for inference, without ground truth labels.
+
+    Args:
+    - subset: Which subset to use ('train', 'val', 'test', or 'full').
+    - root_dir: The root directory containing the dataset.
+    - img_transform: The transformation to apply to the images.
+    - augment: Whether to apply data augmentation.
+    - equalize: Whether to apply histogram equalization.
+    - debug: Whether to enable debug mode (using a small subset of data).
+    """
+    def __init__(self, subset, root_dir, img_transform=None, augment=False, equalize=False, debug=False):
+        self.root_dir: str = root_dir
+        self.img_transform: Callable = img_transform
+        self.augmentation: bool = augment
+        self.equalize: bool = equalize
+
+        # Only load images, no ground truth labels
+        self.files = self._make_image_dataset(root_dir, subset)
+        if debug:
+            self.files = self.files[:10]
+
+        print(f">> Created {subset} dataset with {len(self)} images (no ground truth)...")
+
+    def _make_image_dataset(self, root, subset) -> List[Path]:
+        """
+        Creates the dataset by loading image paths only.
+
+        Args:
+        - root: The root directory of the dataset.
+        - subset: The subset to load ('train', 'val', 'test', or 'full').
+
+        Returns:
+        - A list of image paths.
+        """
+        root = Path(root)
+
+        if subset in ['test']:
+            img_path = root / subset / 'img'
+            images = sorted(img_path.glob("*.png"))
+            return images
+        else:
+            raise ValueError(f"Unknown subset {subset}. Valid options are 'train', 'val', 'test', or 'full'.")
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, index) -> dict[str, Union[Tensor, str]]:
+        img_path = self.files[index]
+
+        img: Tensor = self.img_transform(Image.open(img_path))
+
+        return {"images": img,
+                "stems": img_path.stem}
