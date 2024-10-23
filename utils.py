@@ -277,34 +277,53 @@ def calculate_3d_dice(patient_slices):
 
 
 
-def compute_hausdorff_distance(pred_mask: torch.Tensor, gt_mask: torch.Tensor) -> float:
+def compute_hausdorff_distance(pred_mask: torch.Tensor, 
+                               gt_mask: torch.Tensor, 
+                               voxel_spacing: tuple = (1.0, 1.0, 1.0),
+                               percentile: int = 95) -> dict:
     """
-    Computes the symmetric Hausdorff distance between two binary volumes.
+    Computes both standard and 95th percentile Hausdorff distances between two binary volumes.
 
     Args:
         pred_mask (torch.Tensor): Binary volume of predictions (D x W x H)
         gt_mask (torch.Tensor): Binary volume of ground truth (D x W x H)
+        voxel_spacing (tuple): Physical spacing between voxels (depth, height, width)
+        percentile (int): Percentile for HD calculation (default 95 for HD95)
 
     Returns:
-        float: Hausdorff distance
+        dict: Contains both standard HD and HD95 measurements
     """
+    # Input validation
+    assert pred_mask.shape == gt_mask.shape, "Prediction and ground truth shapes must match"
+    assert pred_mask.min() >= 0 and pred_mask.max() <= 1, "Prediction mask must be binary"
+    assert gt_mask.min() >= 0 and gt_mask.max() <= 1, "Ground truth mask must be binary"
+    
     # Convert tensors to numpy arrays
     pred_mask_np = pred_mask.cpu().numpy().astype(np.bool_)
     gt_mask_np = gt_mask.cpu().numpy().astype(np.bool_)
 
-    # Compute distance transforms
-    dt_gt = distance_transform_edt(~gt_mask_np)
-    dt_pred = distance_transform_edt(~pred_mask_np)
+    # If both masks are empty or full, return 0 distance
+    if (np.sum(pred_mask_np) == 0 and np.sum(gt_mask_np) == 0) or \
+       (np.sum(pred_mask_np) == pred_mask_np.size and np.sum(gt_mask_np) == gt_mask_np.size):
+        return {'HD': 0.0, 'HD95': 0.0}
 
-    # Extract surface voxels
+    # Compute distance transforms with voxel spacing
+    dt_gt = distance_transform_edt(~gt_mask_np, sampling=voxel_spacing)
+    dt_pred = distance_transform_edt(~pred_mask_np, sampling=voxel_spacing)
+
+    # Extract surface voxels using binary erosion
     surface_pred = pred_mask_np ^ binary_erosion(pred_mask_np)
     surface_gt = gt_mask_np ^ binary_erosion(gt_mask_np)
 
-    # Sample distances
+    # Get distances for both directions
     distances_pred_to_gt = dt_gt[surface_pred]
     distances_gt_to_pred = dt_pred[surface_gt]
 
-    # Handle cases where there are no surface points
+    # Handle empty surfaces
+    if distances_pred_to_gt.size == 0 and distances_gt_to_pred.size == 0:
+        return {'HD': 0.0, 'HD95': 0.0}
+
+    # Compute standard HD
     if distances_pred_to_gt.size == 0:
         max_distance_pred_to_gt = 0
     else:
@@ -315,32 +334,37 @@ def compute_hausdorff_distance(pred_mask: torch.Tensor, gt_mask: torch.Tensor) -
     else:
         max_distance_gt_to_pred = distances_gt_to_pred.max()
 
-    # Compute symmetric Hausdorff distance
-    hausdorff_distance = max(max_distance_pred_to_gt, max_distance_gt_to_pred)
-    return hausdorff_distance
+    hd = max(max_distance_pred_to_gt, max_distance_gt_to_pred)
 
-def calculate_3d_hausdorff(patient_slices):
+    # Compute HD95
+    all_distances = np.concatenate([distances_pred_to_gt, distances_gt_to_pred])
+    hd95 = np.percentile(all_distances, percentile) if all_distances.size > 0 else 0.0
+
+    return {'HD': float(hd), 'HD95': float(hd95)}
+
+def calculate_3d_hausdorff(patient_slices, voxel_spacing=(1.0, 1.0, 1.0)):
     """
     Computes the 3D Hausdorff distance for each patient and class.
 
     Args:
         patient_slices (dict): Dictionary containing prediction and ground truth slices for each patient.
+        voxel_spacing (tuple): Physical spacing between voxels (depth, height, width)
 
     Returns:
-        dict: Per-patient Hausdorff distances.
+        dict: Per-patient Hausdorff distances (both HD and HD95).
     """
     per_patient_hausdorff = {}
 
-    # Create a progress bar for patients
     patient_progress = tqdm(patient_slices.items(), desc="Calculating 3D Hausdorff", unit="patient")
 
     for patient_id, slices in patient_progress:
         if len(slices['pred_slices']) > 1:
+            # Stack slices into volumes
             pred_volume = torch.stack(slices['pred_slices'], dim=0)  # Shape: [D, K, W, H]
             gt_volume = torch.stack(slices['gt_slices'], dim=0)      # Shape: [D, K, W, H]
 
             K = pred_volume.shape[1]  # Number of classes
-            hausdorff_scores = []
+            hausdorff_scores = {'HD': [], 'HD95': []}
 
             for k in range(K):
                 pred_k = pred_volume[:, k]  # Shape: [D, W, H]
@@ -348,16 +372,18 @@ def calculate_3d_hausdorff(patient_slices):
 
                 # Skip if both masks are empty
                 if torch.sum(pred_k) == 0 and torch.sum(gt_k) == 0:
-                    hausdorff_scores.append(0.0)
+                    hausdorff_scores['HD'].append(0.0)
+                    hausdorff_scores['HD95'].append(0.0)
                     continue
 
-                # Compute Hausdorff distance using the distance transform method
-                hausdorff_distance = compute_hausdorff_distance(pred_k, gt_k)
-                hausdorff_scores.append(hausdorff_distance)
+                # Compute both HD and HD95
+                distances = compute_hausdorff_distance(pred_k, gt_k, voxel_spacing)
+                hausdorff_scores['HD'].append(distances['HD'])
+                hausdorff_scores['HD95'].append(distances['HD95'])
 
             per_patient_hausdorff[patient_id] = hausdorff_scores
 
-        # Update progress bar description with current patient ID
+        # Update progress bar
         patient_progress.set_description(f"Calculating 3D Hausdorff - Patient: {patient_id}")
 
     return per_patient_hausdorff
