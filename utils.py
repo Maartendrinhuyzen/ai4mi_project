@@ -28,6 +28,7 @@ from multiprocessing import Pool
 from contextlib import AbstractContextManager
 from typing import Callable, Iterable, List, Set, Tuple, TypeVar, cast
 from scipy.spatial.distance import directed_hausdorff
+from scipy.ndimage import distance_transform_edt, binary_erosion
 
 import torch
 import numpy as np
@@ -237,38 +238,6 @@ def collect_patient_slices(patient_slices, img_paths, pred_seg, gt, B):
 
     return patient_slices
 
-# import torch
-# import numpy as np
-# from scipy.spatial.distance import directed_hausdorff
-# def calculate_3d_hausdorff(patient_slices):
-#     """
-#     Computes the 3D Hausdorff distance for each patient and logs the results.
-#     Args:
-#     - patient_slices: Dictionary containing prediction and ground truth slices for each patient.
-#     Returns:
-#     - hausdorff_distances: Numpy array containing 3D Hausdorff distances for each patient.
-#     """
-#     num_patients = len(patient_slices)
-#     hausdorff_distances = np.zeros(num_patients)  # Initialize array to store 3D Hausdorff distances for each patient
-#     for idx, (patient_id, slices) in enumerate(patient_slices.items()):
-#         if len(slices['pred_slices']) > 1:  # Ensure we have more than one slice to create a 3D volume
-#             # Convert the list of slices into a 3D tensor
-#             pred_volume = torch.stack(slices['pred_slices'], dim=-1).cpu().numpy()  # Convert to numpy array
-#             gt_volume = torch.stack(slices['gt_slices'], dim=-1).cpu().numpy()  # Convert to numpy array
-#             # Get the coordinates of the boundary points (where the segmentation is positive)
-#             pred_points = np.argwhere(pred_volume > 0)
-#             gt_points = np.argwhere(gt_volume > 0)
-#             # Calculate the directed Hausdorff distances
-#             hausdorff_pred_to_gt = directed_hausdorff(pred_points, gt_points)[0]
-#             hausdorff_gt_to_pred = directed_hausdorff(gt_points, pred_points)[0]
-#             # Hausdorff distance is the maximum of the directed distances
-#             hausdorff_distance = max(hausdorff_pred_to_gt, hausdorff_gt_to_pred)
-#             # Log Hausdorff distance for the patient
-#             hausdorff_distances[idx] = hausdorff_distance
-#     return hausdorff_distances
-
-
-
 def calculate_3d_dice(patient_slices):
     """
     Computes the 3D Dice score for each patient and class.
@@ -306,81 +275,92 @@ def calculate_3d_dice(patient_slices):
 
     return per_patient_dice
 
-# def calculate_directed_hausdorff(source_points: torch.Tensor, target_points: torch.Tensor, batch_size: int = 1000) -> float:
-#     """
-#     Calculates the directed Hausdorff distance from source points to target points.
-    
-#     Args:
-#     - source_points: Points from which to calculate distances (N x D tensor)
-#     - target_points: Points to which distances are calculated (M x D tensor)
-#     - batch_size: Number of points to process at once
-    
-#     Returns:
-#     - Maximum minimum distance from source to target points
-#     """
-#     max_min_distance = 0
-    
-#     for i in range(0, len(source_points), batch_size):
-#         source_batch = source_points[i:i + batch_size]
-#         # Initialize min_distances as a tensor with the same device as source_points
-#         min_distances = torch.full((len(source_batch),), float('inf'), 
-#                                  device=source_points.device)
-        
-#         for j in range(0, len(target_points), batch_size):
-#             target_batch = target_points[j:j + batch_size]
-#             distances = torch.cdist(source_batch, target_batch, p=2)
-#             batch_min = distances.min(dim=1)[0]
-#             min_distances = torch.minimum(min_distances, batch_min)
-        
-#         batch_max = min_distances.max().item()
-#         max_min_distance = max(max_min_distance, batch_max)
-    
-#     return max_min_distance
 
-# def calculate_3d_hausdorff(patient_slices):
-#     """
-#     Computes the 3D Hausdorff distance for each patient and class using PyTorch with batch processing.
 
-#     Args:
-#     - patient_slices: Dictionary containing prediction and ground truth slices for each patient.
+def compute_hausdorff_distance(pred_mask: torch.Tensor, gt_mask: torch.Tensor) -> float:
+    """
+    Computes the symmetric Hausdorff distance between two binary volumes.
 
-#     Returns:
-#     - per_patient_hausdorff: Dictionary where each key is a patient ID and the value is a list of 
-#       Hausdorff distances, one for each class.
-#     """
-#     per_patient_hausdorff = {}
-#     BATCH_SIZE = 1000000
+    Args:
+        pred_mask (torch.Tensor): Binary volume of predictions (D x W x H)
+        gt_mask (torch.Tensor): Binary volume of ground truth (D x W x H)
 
-#     for patient_id, slices in patient_slices.items():
-#         if len(slices['pred_slices']) > 1:
-#             pred_volume = torch.stack(slices['pred_slices'], dim=0)  # Shape: [D, K, W, H]
-#             gt_volume = torch.stack(slices['gt_slices'], dim=0)      # Shape: [D, K, W, H]
-            
-#             K = pred_volume.shape[1]  # Number of classes
-#             hausdorff_scores = []
-            
-#             for k in range(K):
-#                 pred_k = pred_volume[:, k]  # Shape: [D, W, H]
-#                 gt_k = gt_volume[:, k]      # Shape: [D, W, H]
-                
-#                 pred_points = torch.nonzero(pred_k).float()
-#                 gt_points = torch.nonzero(gt_k).float()
-                
-#                 if len(pred_points) == 0 or len(gt_points) == 0:
-#                     hausdorff_scores.append(0.0)
-#                     continue
-#                 print(len(pred_points), len(gt_points))
-#                 # Calculate Hausdorff distance in both directions
-#                 pred_to_gt = calculate_directed_hausdorff(pred_points, gt_points, BATCH_SIZE)
-#                 gt_to_pred = calculate_directed_hausdorff(gt_points, pred_points, BATCH_SIZE)
-#                 print("yes")
-#                 # Hausdorff distance is the maximum of both directed distances
-#                 hausdorff_distance = max(pred_to_gt, gt_to_pred)
-#                 hausdorff_scores.append(hausdorff_distance)
-            
-#             per_patient_hausdorff[patient_id] = hausdorff_scores
+    Returns:
+        float: Hausdorff distance
+    """
+    # Convert tensors to numpy arrays
+    pred_mask_np = pred_mask.cpu().numpy().astype(np.bool_)
+    gt_mask_np = gt_mask.cpu().numpy().astype(np.bool_)
 
-#     return per_patient_hausdorff
+    # Compute distance transforms
+    dt_gt = distance_transform_edt(~gt_mask_np)
+    dt_pred = distance_transform_edt(~pred_mask_np)
+
+    # Extract surface voxels
+    surface_pred = pred_mask_np ^ binary_erosion(pred_mask_np)
+    surface_gt = gt_mask_np ^ binary_erosion(gt_mask_np)
+
+    # Sample distances
+    distances_pred_to_gt = dt_gt[surface_pred]
+    distances_gt_to_pred = dt_pred[surface_gt]
+
+    # Handle cases where there are no surface points
+    if distances_pred_to_gt.size == 0:
+        max_distance_pred_to_gt = 0
+    else:
+        max_distance_pred_to_gt = distances_pred_to_gt.max()
+
+    if distances_gt_to_pred.size == 0:
+        max_distance_gt_to_pred = 0
+    else:
+        max_distance_gt_to_pred = distances_gt_to_pred.max()
+
+    # Compute symmetric Hausdorff distance
+    hausdorff_distance = max(max_distance_pred_to_gt, max_distance_gt_to_pred)
+    return hausdorff_distance
+
+def calculate_3d_hausdorff(patient_slices):
+    """
+    Computes the 3D Hausdorff distance for each patient and class.
+
+    Args:
+        patient_slices (dict): Dictionary containing prediction and ground truth slices for each patient.
+
+    Returns:
+        dict: Per-patient Hausdorff distances.
+    """
+    per_patient_hausdorff = {}
+
+    # Create a progress bar for patients
+    patient_progress = tqdm(patient_slices.items(), desc="Calculating 3D Hausdorff", unit="patient")
+
+    for patient_id, slices in patient_progress:
+        if len(slices['pred_slices']) > 1:
+            pred_volume = torch.stack(slices['pred_slices'], dim=0)  # Shape: [D, K, W, H]
+            gt_volume = torch.stack(slices['gt_slices'], dim=0)      # Shape: [D, K, W, H]
+
+            K = pred_volume.shape[1]  # Number of classes
+            hausdorff_scores = []
+
+            for k in range(K):
+                pred_k = pred_volume[:, k]  # Shape: [D, W, H]
+                gt_k = gt_volume[:, k]      # Shape: [D, W, H]
+
+                # Skip if both masks are empty
+                if torch.sum(pred_k) == 0 and torch.sum(gt_k) == 0:
+                    hausdorff_scores.append(0.0)
+                    continue
+
+                # Compute Hausdorff distance using the distance transform method
+                hausdorff_distance = compute_hausdorff_distance(pred_k, gt_k)
+                hausdorff_scores.append(hausdorff_distance)
+
+            per_patient_hausdorff[patient_id] = hausdorff_scores
+
+        # Update progress bar description with current patient ID
+        patient_progress.set_description(f"Calculating 3D Hausdorff - Patient: {patient_id}")
+
+    return per_patient_hausdorff
 
 
 
