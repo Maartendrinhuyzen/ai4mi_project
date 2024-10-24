@@ -13,7 +13,8 @@ This codebase provides a foundation for training and evaluating neural networks 
 * Pre- and post-processing functions such as affine transformation and morphological operations.
 * The modular design of the codebase allows users to easily add new models or customize the training workflow.
 
-# Setting up the environment and data
+## Codebase Use
+### Setting up the environment and data
 For the precise setup of the data and the environment we refer to the original repository: https://github.com/HKervadec/ai4mi_project. 
 However when running on snellius some nodes are set up with different configurations (i.e. older versions of python etc.). Therefore we have included a script under /scripts/setup_py_env.sh which you can run when you are experiencing issues with your environment when running our code:
 ```
