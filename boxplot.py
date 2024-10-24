@@ -55,7 +55,10 @@ def run(args: argparse.Namespace) -> None:
 
     # Set title and labels
     ax.set_title(args.plot_title)
-    ax.set_xlabel(f'Data at Epoch {best_epoch}')
+    if args.x_label is None:
+        ax.set_xlabel(f'Data at Epoch {best_epoch}')
+    else:
+        ax.set_xlabel(args.x_label)
     ax.set_ylabel(args.y_label)
 
     # Extract data for the best epoch
@@ -110,6 +113,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument('--epoch', type=int, help="Epoch to use for the data in the boxplot")                    
     parser.add_argument("--include_avg", type=bool, default=False, help="Set to True if you want to include a box for the average")
     parser.add_argument("--plot_title", type=str, required=True, help="Boxplot title")
+    parser.add_argument("--x_label", type=str, help="Label for x-axis of the plot")
     parser.add_argument("--y_label", type=str, required=True, help="Label for the y-axis of the plot")
     parser.add_argument("--set_ylim", type=bool, default=False, help="Set to True if you want to specify a range for the y-axis")
     parser.add_argument("--ylim_lower", type=float, help="Lower limit of y-axis")
