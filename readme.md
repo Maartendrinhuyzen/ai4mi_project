@@ -68,6 +68,9 @@ srun python -O main.py --dataset SEGTHOR_transformed \
 ```
 For convenience, we have added job file templates to run the training on snellius (`/job_files`)
 
+### K-fold Cross Validation
+The argument `--k_folds` specifies the number of folds that you can run in k-folds cross validation. Specify `--k_folds` to run normal training.
+
 ### Running inference
 To run inference on a trained model, we have provided a python script `inference.py`. This script helps set up the environment, load the best model weights, and execute the inference script to generate predictions.
 Example command for local inference:
@@ -75,12 +78,6 @@ Example command for local inference:
 $ python inference.py --dataset SEGTHOR_TESTSET --model UNetAttention --weights path/to/bestweights.pt --dest results/inference-unet_attention --gpu
 ```
 When running in snellius, there are job templates provided as well under the aformentioned folder.
-
-
-### Plotting the metrics
-For instructions on plotting please refer to the original repository. However we have added additional plotting scripts that can be run as follows:
-``` 
-```
 
 ## Contributors
 The contributors to this repository are:
