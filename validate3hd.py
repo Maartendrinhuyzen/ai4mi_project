@@ -1,3 +1,5 @@
+import argparse
+import pickle
 import torch
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -40,17 +42,14 @@ def load_saved_model(model_path):
     model.eval()
     return model
 
-def validate3hd_main():
+def validate3hd_main(args):
     """
     Main function to load ground truths, generate predictions, and collect them using collect_patient_slices.
     """
     # Configuration
-    model_path = "/home/scur2459/ai4mi_project/results/UnetA/combined/bestmodel.pkl"  # Path to the best model
-    assert Path(model_path).is_file(), f"Model file not found at {model_path}"
-    model = load_saved_model(model_path)
+    assert Path(args.model_path).is_file(), f"Model file not found at {args.model_path}"
+    model = load_saved_model(args.model_path)
 
-    dataset_name = "SEGTHOR_transformed"  # Dataset name
-    data_dir = "/home/scur2459/ai4mi_project/data"  # Data directory
     K = 5  # Number of classes, adjust based on your dataset
     batch_size = 8
     num_workers = 5
@@ -74,7 +73,7 @@ def validate3hd_main():
     ])
 
     # Initialize the validation dataset with both images and ground truths
-    root_dir = Path(data_dir) / dataset_name
+    root_dir = Path(args.data_dir)
     val_set = SliceDataset('val',
                            root_dir,
                            img_transform=img_transform,
@@ -114,11 +113,11 @@ def validate3hd_main():
             pred_seg = probs2one_hot(pred_probs)
             
             patient_slices_val = collect_patient_slices(patient_slices_val, img_paths, pred_seg, gt, B)
-    log_3d_dice_val[21] = calculate_3d_dice(patient_slices_val)
-    log_3d_ahd_val[21] = calculate_3d_hausdorff(patient_slices_val)   
-    log_3d_iou_val[21] = calculate_3d_iou(patient_slices_val)
-    print(log_3d_dice_val)
-    print(log_3d_ahd_val)
+    log_3d_dice_val[args.epoch] = calculate_3d_dice(patient_slices_val)
+    log_3d_ahd_val[args.epoch] = calculate_3d_hausdorff(patient_slices_val)   
+    log_3d_iou_val[args.epoch] = calculate_3d_iou(patient_slices_val)
+    print("3D Dice:", log_3d_dice_val)
+    print("3D HD:", log_3d_ahd_val)
 
     # Calculate mean HD and HD95 scores for each epoch
     mean_hd_scores = []
@@ -135,13 +134,14 @@ def validate3hd_main():
         mean_hd_scores.append(np.mean(hd_scores))
         mean_hd95_scores.append(np.mean(hd95_scores))
 
-    print("Mean HD scores per epoch:", mean_hd_scores)
-    print("Mean HD95 scores per epoch:", mean_hd95_scores)
+    print("Mean HD score over all patients (Best epoch):", mean_hd_scores)
+    print("Mean HD95 score over all patients (Best epoch):", mean_hd95_scores)
     # epochs = list(log_3d_ahd_val.keys())
     # ahd_scores = [np.mean(list(log_3d_ahd_val[e].values())) for e in epochs]
     # print(ahd_scores)
 
     epochs = list(log_3d_dice_val.keys())
+    print("Epochs:", epochs)
     dice_scores = [np.mean(list(log_3d_dice_val[e].values())) for e in epochs]
     print(dice_scores)
 
@@ -149,7 +149,42 @@ def validate3hd_main():
     iou_scores = [np.mean(list(log_3d_iou_val[e].values())) for e in epochs]
     print(iou_scores)
 
+    # Save the data in the correct format to be used by the plot functions
+    # Initialize new dictionaries
+    hd_data = {0: {}}
+    hd95_data = {0: {}}
+
+    # Populate new dictionaries
+    for key, value in log_3d_ahd_val[args.epoch].items():
+        hd_data[0][key] = value['HD']
+        hd95_data[0][key] = value['HD95']
+
+    # Make sure the output directory exists
+    args.output_folder.mkdir(parents=True, exist_ok=True)
+
+    # Save the dictionary as a .pkl file using pickle
+    with open(args.output_folder / "metrics_hd.pkl", "wb") as pkl_file:
+        pickle.dump(hd_data, pkl_file)
+    
+    # Save the dictionary as a .pkl file using pickle
+    with open(args.output_folder / "metrics_95hd.pkl", "wb") as pkl_file:
+        pickle.dump(hd95_data, pkl_file)
     # with open('log_3d_ahd_val.pkl', 'wb') as f:
     #     pickle.dump(log_3d_ahd_val, f)
+
+def get_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description='Computing 3D Hausdorff Distance')
+    parser.add_argument('--model_path', type=str, required=True,
+                        help="Path to the best model. E.g, bestmodel.pkl")
+    parser.add_argument('--data_dir', type=str, required=True, help="Base directory where GT data is stored (without /val)")
+    parser.add_argument('--output_folder', type=Path, required=True, help="Folder where output will be stored")
+    parser.add_argument('--epoch', type=int, required=True, help="Index of best epoch over which the metrics will be computed")
+
+    args = parser.parse_args()
+
+    print(args)
+
+    return args
+
 if __name__ == "__main__":
-    validate3hd_main()
+    validate3hd_main(get_args())
