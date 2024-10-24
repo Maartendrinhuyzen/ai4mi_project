@@ -1,4 +1,4 @@
-# AI for medical imaging — Group 5
+# AI for medical imaging - Segmentation on SegTHOR
 
 ## Research overview
 The project is based on the SegTHOR dataset, which focuses on segmenting different organs: the heart, aorta, esophagus, and trachea. Our research explores various deep learning models and their applicability in medical image segmentation. The SegTHOR dataset presents a unique challenge due to the lack of contrast between organs, making it an ideal testbed for experimenting with segmentation models. We have based our research on the original repository: https://github.com/HKervadec/ai4mi_project. **While we retain all core features related to data processing, plotting, and other functionalities, this README emphasizes the changes and enhancements we have implemented to adapt the codebase for our research objectives.**
@@ -80,7 +80,7 @@ $ python inference.py --dataset SEGTHOR_TESTSET --model UNetAttention --weights 
 ```
 When running in snellius, there are job templates provided as well under the aformentioned folder.
 
-## Contributors
+## Contributors - Group 5
 The contributors to this repository are:
 * Richter van Emmerik
 * Lisa Menzel
