@@ -29,6 +29,7 @@ from contextlib import AbstractContextManager
 from typing import Callable, Iterable, List, Set, Tuple, TypeVar, cast
 from scipy.spatial.distance import directed_hausdorff
 from scipy.ndimage import distance_transform_edt, binary_erosion
+from dataset import SliceDataset
 
 import torch
 import numpy as np
@@ -293,10 +294,6 @@ def compute_hausdorff_distance(pred_mask: torch.Tensor,
     Returns:
         dict: Contains both standard HD and HD95 measurements
     """
-    # Input validation
-    assert pred_mask.shape == gt_mask.shape, "Prediction and ground truth shapes must match"
-    assert pred_mask.min() >= 0 and pred_mask.max() <= 1, "Prediction mask must be binary"
-    assert gt_mask.min() >= 0 and gt_mask.max() <= 1, "Ground truth mask must be binary"
     
     # Convert tensors to numpy arrays
     pred_mask_np = pred_mask.cpu().numpy().astype(np.bool_)
@@ -430,3 +427,69 @@ def calculate_3d_iou(patient_slices):
         per_patient_iou[patient_id] = ious  # List of IoU per class
 
     return per_patient_iou    
+
+def get_boundary_points(seg):
+    """
+    Extracts boundary points from a binary segmentation mask.
+    
+    Parameters:
+    seg (Tensor): Binary segmentation mask, shape [1, H, W]
+    
+    Returns:
+    Tensor: Tensor of boundary points, shape [N, 2] where N is the number of boundary points.
+    """
+    # Using morphological operations to find the boundary
+    kernel = torch.ones((3, 3), dtype=torch.float32).to(seg.device)
+    seg_dilated = torch.nn.functional.conv2d(seg.unsqueeze(0).unsqueeze(0), kernel.unsqueeze(0).unsqueeze(0), padding=1)
+    boundary = seg_dilated - seg.unsqueeze(0).unsqueeze(0)
+    boundary = boundary.squeeze(0).squeeze(0)
+    
+    # Get the coordinates of the boundary points
+    boundary_points = torch.nonzero(boundary).float()
+    
+    return boundary_points
+
+def compute_pairwise_distances(points1, points2):
+    """
+    Computes pairwise Euclidean distances between two sets of points.
+    
+    Parameters:
+    points1 (Tensor): Tensor of shape [N, 2]
+    points2 (Tensor): Tensor of shape [M, 2]
+    
+    Returns:
+    Tensor: Pairwise distances of shape [N]
+    """
+    # Expand points and compute Euclidean distance
+    dists = torch.cdist(points1, points2, p=2)
+    
+    # Return the minimum distance for each point in points1 to points2
+    return dists.min(dim=1)[0]
+
+
+def count_class_occurrences(dataset: SliceDataset, num_classes: int) -> list[int]:
+    class_occurrences = [0] * num_classes
+    total_samples = len(dataset)
+
+    print(f">> Counting class occurrences across {total_samples} samples...")
+
+    for idx in tqdm(range(total_samples)):
+        sample = dataset[idx]
+        gt = sample['gts']  # Shape: [num_classes, H, W]
+        
+        # Check which classes are present in this sample
+        for class_idx in range(num_classes):
+            if gt[class_idx].any():
+                class_occurrences[class_idx] += 1
+
+    print(f">> Class occurrences: {class_occurrences}")
+    return class_occurrences
+
+def calculate_class_weights(frequencies: list[float], alpha: float = 1.0) -> list[float]:
+    epsilon = 1e-8  # To prevent division by zero
+    weights = [alpha / (freq + epsilon) if freq > 0 else 0.0 for freq in frequencies]
+    # Normalize weights to have mean = 1
+    mean_weight = sum(weights) / len(weights)
+    normalized_weights = [w / mean_weight for w in weights]
+    print(f">> Calculated Class Weights: {normalized_weights}")
+    return normalized_weights    

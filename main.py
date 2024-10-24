@@ -57,7 +57,9 @@ from utils import (Dcm,
                    collect_patient_slices,
                    calculate_3d_dice,
                    calculate_3d_iou,
-                   calculate_3d_hausdorff)
+                   calculate_3d_hausdorff,
+                   count_class_occurrences,
+                   calculate_class_weights)
 
 from losses import (CrossEntropy,
                    BalancedCrossEntropy,
@@ -71,101 +73,6 @@ from tqdm import tqdm
 from sklearn.model_selection import KFold
 
 
-import torch
-
-def percentile_hausdorff_distance(pred_seg, gt_seg, percentile=90):
-    """
-    Computes the percentile-based Hausdorff distance (e.g., 90th percentile).
-    
-    Parameters:
-    pred_seg (Tensor): Predicted segmentation, shape [1, H, W]
-    gt_seg (Tensor): Ground truth segmentation, shape [1, H, W]
-    percentile (float): Percentile to use, typically 90.
-    
-    Returns:
-    float: The percentile Hausdorff distance
-    """
-    # Get the boundary points of the predicted and ground truth segmentations
-    pred_boundary = get_boundary_points(pred_seg)
-    gt_boundary = get_boundary_points(gt_seg)
-    
-    # Compute pairwise distances between all boundary points
-    pred_to_gt_distances = compute_pairwise_distances(pred_boundary, gt_boundary)
-    gt_to_pred_distances = compute_pairwise_distances(gt_boundary, pred_boundary)
-    
-    # Concatenate the distances from both directions
-    all_distances = torch.cat([pred_to_gt_distances, gt_to_pred_distances])
-    
-    # Compute the desired percentile
-    hausdorff_percentile = torch.quantile(all_distances, percentile / 100.0).item()
-    
-    return hausdorff_percentile
-
-def get_boundary_points(seg):
-    """
-    Extracts boundary points from a binary segmentation mask.
-    
-    Parameters:
-    seg (Tensor): Binary segmentation mask, shape [1, H, W]
-    
-    Returns:
-    Tensor: Tensor of boundary points, shape [N, 2] where N is the number of boundary points.
-    """
-    # Using morphological operations to find the boundary
-    kernel = torch.ones((3, 3), dtype=torch.float32).to(seg.device)
-    seg_dilated = torch.nn.functional.conv2d(seg.unsqueeze(0).unsqueeze(0), kernel.unsqueeze(0).unsqueeze(0), padding=1)
-    boundary = seg_dilated - seg.unsqueeze(0).unsqueeze(0)
-    boundary = boundary.squeeze(0).squeeze(0)
-    
-    # Get the coordinates of the boundary points
-    boundary_points = torch.nonzero(boundary).float()
-    
-    return boundary_points
-
-def compute_pairwise_distances(points1, points2):
-    """
-    Computes pairwise Euclidean distances between two sets of points.
-    
-    Parameters:
-    points1 (Tensor): Tensor of shape [N, 2]
-    points2 (Tensor): Tensor of shape [M, 2]
-    
-    Returns:
-    Tensor: Pairwise distances of shape [N]
-    """
-    # Expand points and compute Euclidean distance
-    dists = torch.cdist(points1, points2, p=2)
-    
-    # Return the minimum distance for each point in points1 to points2
-    return dists.min(dim=1)[0]
-
-
-def count_class_occurrences(dataset: SliceDataset, num_classes: int) -> list[int]:
-    class_occurrences = [0] * num_classes
-    total_samples = len(dataset)
-
-    print(f">> Counting class occurrences across {total_samples} samples...")
-
-    for idx in tqdm(range(total_samples)):
-        sample = dataset[idx]
-        gt = sample['gts']  # Shape: [num_classes, H, W]
-        
-        # Check which classes are present in this sample
-        for class_idx in range(num_classes):
-            if gt[class_idx].any():
-                class_occurrences[class_idx] += 1
-
-    print(f">> Class occurrences: {class_occurrences}")
-    return class_occurrences
-
-def calculate_class_weights(frequencies: list[float], alpha: float = 1.0) -> list[float]:
-    epsilon = 1e-8  # To prevent division by zero
-    weights = [alpha / (freq + epsilon) if freq > 0 else 0.0 for freq in frequencies]
-    # Normalize weights to have mean = 1
-    mean_weight = sum(weights) / len(weights)
-    normalized_weights = [w / mean_weight for w in weights]
-    print(f">> Calculated Class Weights: {normalized_weights}")
-    return normalized_weights
 
 datasets_params: dict[str, dict[str, Any]] = {}
 # K for the number of classes
@@ -332,10 +239,6 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
     log_dice_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))
     log_loss_val = torch.zeros((args.epochs, len(val_loader)))
     log_dice_val = torch.zeros((args.epochs, len(val_loader.dataset), K))
-    log_iou_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))  # Adjusted to match total dataset size
-    log_iou_val = torch.zeros((args.epochs, len(val_loader.dataset), K))    # Adjusted to match total dataset size
-    log_ahd_tra = torch.zeros((args.epochs, len(train_loader.dataset), K))  # AHD during training
-    log_ahd_val = torch.zeros((args.epochs, len(val_loader.dataset), K))    # AHD during validation
 
     loss_fn = get_loss_fn(args, train_loader, K)
     log_3d_dice_val = {}
@@ -358,8 +261,6 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                     loader = train_loader
                     log_loss = log_loss_tra
                     log_dice = log_dice_tra
-                    log_iou = log_iou_tra
-                    log_ahd = log_ahd_tra
                 case 'val':
                     net.eval()
                     opt = None
@@ -368,8 +269,6 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                     loader = val_loader
                     log_loss = log_loss_val
                     log_dice = log_dice_val
-                    log_iou = log_iou_val
-                    log_ahd = log_ahd_val
 
             
             with cm():  # Either dummy context manager or torch.no_grad for validation
@@ -402,14 +301,6 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                         patient_slices_tra = collect_patient_slices(patient_slices_tra, img_paths, pred_seg, gt, B)
 
                     log_dice[e, j:j + B, :] = dice_coef(gt, pred_seg)  # One DSC value per sample and per class
-                    
-                    # for b in range(B):
-                    #     for k in range(K):
-                    #         pred_seg_batch = pred_seg[b, k].unsqueeze(0)  # Shape becomes [1, H, W]
-                    #         gt_batch = gt[b, k].unsqueeze(0) 
-                    #         ahd = torch2D_Hausdorff_distance(pred_seg_batch, gt_batch)
-                    #         # ahd = percentile_hausdorff_distance(pred_seg_batch, gt_batch, percentile=90)
-                    #         log_ahd[e, index, k] = ahd
 
                     # Loss computation
                     loss = loss_fn(pred_probs, gt)
@@ -432,16 +323,10 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
                     postfix_dict = {
                         "Dice": f"{log_dice[e, :j, 1:].mean():05.3f}",
                         "Loss": f"{log_loss[e, :i + 1].mean():5.2e}",
-                        "IoU": f"{log_iou[e, :j, 1:].mean():05.3f}",
-                        "AHD": f"{log_ahd[e, :j, 1:].mean():05.3f}"
                          }
 
                     if K > 2:  # Multi-class case
                         postfix_dict |= {f"Dice-{k}": f"{log_dice[e, :j, k].mean():05.3f}" for k in range(1, K)
-                                         }
-                        postfix_dict |= {f"IoU-{k}": f"{log_iou[e, :j, k].mean():05.3f}" for k in range(1, K)
-                                         }
-                        postfix_dict |= {f"AHD-{k}": f"{log_ahd[e, :j, k].mean():05.3f}" for k in range(1, K)
                                          }
                     tq_iter.set_postfix(postfix_dict)
         
@@ -449,40 +334,41 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
         # patient_slices = {'Patient03': {'pred_slices': [], 'gt_slices': []},
         #                   'Patient04': {'pred_slices': [], 'gt_slices': []},
         #                   ...}
+        # Calculate 3D metrics for training and validation
         log_3d_dice_tra[e] = calculate_3d_dice(patient_slices_tra)
         log_3d_iou_tra[e] = calculate_3d_iou(patient_slices_tra)
 
         log_3d_dice_val[e] = calculate_3d_dice(patient_slices_val)
         log_3d_iou_val[e] = calculate_3d_iou(patient_slices_val)
 
-        # Calculate 3D AHD only for the last epoch
-        if e == args.epochs - 1:  # Check if this is the last epoch
-            log_3d_ahd_val[e] = calculate_3d_hausdorff(patient_slices_val)
-            log_3d_ahd_tra[e] = calculate_3d_hausdorff(patient_slices_tra)
+        # Calculate and save 3D AHD only for the last epoch
+        if e == args.epochs - 1:
+            log_3d_ahd_val[e], log_3d_ahd_tra[e] = (
+                calculate_3d_hausdorff(patient_slices_val),
+                calculate_3d_hausdorff(patient_slices_tra),
+            )
             print(f"Final epoch 3D AHD training: {log_3d_ahd_tra[e]}")
             print(f"Final epoch 3D AHD validation: {log_3d_ahd_val[e]}")
-            
-            # Save the final 3D AHD results
-            with open(args.dest / 'final_3d_ahd_val.pkl', 'wb') as f:
-                pickle.dump(log_3d_ahd_val[e], f)
-            with open(args.dest / 'final_3d_ahd_tra.pkl', 'wb') as f:
-                pickle.dump(log_3d_ahd_tra[e], f)
-        # Save the metrics at each epoch
-        np.save(args.dest / "loss_tra.npy", log_loss_tra)
-        np.save(args.dest / "dice_tra.npy", log_dice_tra)
-        # np.save(args.dest / "ahd_tra.npy", log_ahd_tra)
-        np.save(args.dest / "loss_val.npy", log_loss_val)
-        np.save(args.dest / "dice_val.npy", log_dice_val)
-        # np.save(args.dest / "ahd_val.npy", log_ahd_val)
-        with open(args.dest / 'log_3d_dice_val.pkl', 'wb') as f:
-            pickle.dump(log_3d_dice_val, f)
-        with open(args.dest / 'log_3d_dice_tra.pkl', 'wb') as f:
-            pickle.dump(log_3d_dice_tra, f)
 
-        with open(args.dest / 'log_3d_iou_val.pkl', 'wb') as f:
-            pickle.dump(log_3d_iou_val, f)
-        with open(args.dest / 'log_3d_iou_tra.pkl', 'wb') as f:
-            pickle.dump(log_3d_iou_tra, f)
+            save_pickle(args.dest, {
+                'final_3d_ahd_val.pkl': log_3d_ahd_val[e],
+                'final_3d_ahd_tra.pkl': log_3d_ahd_tra[e],
+            })
+
+        # Save metrics at each epoch
+        save_numpy(args.dest, {
+            "loss_tra.npy": log_loss_tra,
+            "dice_tra.npy": log_dice_tra,
+            "loss_val.npy": log_loss_val,
+            "dice_val.npy": log_dice_val,
+        })
+
+        save_pickle(args.dest, {
+            'log_3d_dice_val.pkl': log_3d_dice_val,
+            'log_3d_dice_tra.pkl': log_3d_dice_tra,
+            'log_3d_iou_val.pkl': log_3d_iou_val,
+            'log_3d_iou_tra.pkl': log_3d_iou_tra,
+        })
         # Track best Dice score
         current_dice = log_dice_val[e, :, 1:].mean().item()
         if current_dice > best_dice:
@@ -501,15 +387,25 @@ def train_model_fold(args, net, optimizer, device, K, train_loader, val_loader, 
 
     return best_dice
 
+def save_pickle(dest, data_dict):
+    """Helper function to save multiple pickle files."""
+    for filename, data in data_dict.items():
+        with open(dest / filename, 'wb') as f:
+            pickle.dump(data, f)
+
+def save_numpy(dest, data_dict):
+    """Helper function to save multiple NumPy arrays."""
+    for filename, data in data_dict.items():
+        np.save(dest / filename, data)
+
 def set_seed(seed: int = 42):
-    # np.random.seed(seed)
-    # torch.manual_seed(seed)
-    # if torch.cuda.is_available():
-    #     torch.cuda.manual_seed(seed)
-    #     torch.cuda.manual_seed_all(seed)
-    # torch.backends.cudnn.deterministic = True
-    # torch.backends.cudnn.benchmark = False
-    pass
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def main():
     set_seed(42)
