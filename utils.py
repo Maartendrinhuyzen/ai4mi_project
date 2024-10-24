@@ -28,7 +28,7 @@ from multiprocessing import Pool
 from contextlib import AbstractContextManager
 from typing import Callable, Iterable, List, Set, Tuple, TypeVar, cast
 from scipy.spatial.distance import directed_hausdorff
-from scipy.ndimage import distance_transform_edt, binary_erosion
+from scipy.ndimage import distance_transform_edt, binary_erosion, binary_closing, binary_dilation, generate_binary_structure
 from dataset import SliceDataset
 
 import torch
@@ -180,6 +180,10 @@ def union(a: Tensor, b: Tensor) -> Tensor:
 
     return res
 
+# Binarize the volume based on a threshold
+def binarize_volume(, threshold=0.5):
+    return (volume > threshold).astype(np.uint8)
+    
 def average_hausdorff_distance(pred, gt):
     """Compute the average Hausdorff distance between the predicted and ground truth masks."""
     
@@ -257,7 +261,14 @@ def calculate_3d_dice(patient_slices):
             # Convert the list of slices into a 3D tensor
             pred_volume = torch.stack(slices['pred_slices'], dim=0)  # Shape: [D, K, W, H]
             gt_volume = torch.stack(slices['gt_slices'], dim=0)      # Shape: [D, K, W, H]
-            
+
+            # Binarize the volumes to ensure they are in 0-1 format
+            pred_volume_binary = binarize_volume(pred_volume)
+            gt_volume_binary = binarize_volume(gt_volume)
+            # Apply morphological closing to the predicted segmentation
+            structuring_element = generate_binary_structure(3, 1)  # 3x3x3 structure
+            pred_volume_closed = binary_closing(pred_volume_binary, structure=structuring_element)
+            pred_volume = pred_volume_binary
             # Calculate Dice for each class
             K = pred_volume.shape[1]  # Number of classes
             dice_scores = []
@@ -360,8 +371,17 @@ def calculate_3d_hausdorff(patient_slices, voxel_spacing=(1.0, 1.0, 1.0)):
             pred_volume = torch.stack(slices['pred_slices'], dim=0)  # Shape: [D, K, W, H]
             gt_volume = torch.stack(slices['gt_slices'], dim=0)      # Shape: [D, K, W, H]
 
+            # Binarize the volumes to ensure they are in 0-1 format
+            pred_volume_binary = binarize_volume(pred_volume)
+            gt_volume_binary = binarize_volume(gt_volume)
+            # Apply morphological closing to the predicted segmentation
+            structuring_element = generate_binary_structure(3, 1)  # 3x3x3 structure
+            pred_volume_closed = binary_closing(pred_volume_binary, structure=structuring_element)
+            pred_volume = pred_volume_binary
+
             K = pred_volume.shape[1]  # Number of classes
             hausdorff_scores = {'HD': [], 'HD95': []}
+
 
             for k in range(K):
                 pred_k = pred_volume[:, k]  # Shape: [D, W, H]
@@ -411,6 +431,14 @@ def calculate_3d_iou(patient_slices):
         pred_volume = torch.stack(pred_slices, dim=0)  # Shape: [D, K, W, H]
         gt_volume = torch.stack(gt_slices, dim=0)      # Shape: [D, K, W, H]
 
+        # Binarize the volumes to ensure they are in 0-1 format
+        pred_volume_binary = binarize_volume(pred_volume)
+        gt_volume_binary = binarize_volume(gt_volume)
+        # Apply morphological closing to the predicted segmentation
+        structuring_element = generate_binary_structure(3, 1)  # 3x3x3 structure
+        pred_volume_closed = binary_closing(pred_volume_binary, structure=structuring_element)
+        pred_volume = pred_volume_binary
+        
         # For each class, compute IoU
         K = pred_volume.shape[1]
         ious = []
