@@ -8,9 +8,9 @@ This codebase provides a foundation for training and evaluating neural networks 
 
 * Data Processing: Tools to convert 3D Nifti files into 2D .png slices, and stitch predictions back into 3D volumes compatible with the original Nifti format.
 * Model Options: Basic implementations of U-Net, Attention U-Net, and ENet models, designed for various segmentation tasks.
-* Training and Evaluation: Scripts for training neural networks with cross-entropy loss, partial class exclusion, and validation using the 2D DSC metric.
-* Debugging and Visualization: Options to run on smaller datasets or dummy networks and visualize results using plotting functions and interactive comparison tools.
-* Metrics and Plotting: Tools for logging and plotting key metrics such as Dice similarity coefficient and cross-entropy over time.
+* Training and Evaluation: Scripts for training neural networks with cross-entropy loss, partial class exclusion, and validation using the metric.
+* Metrics and Plotting: Tools for logging and plotting key metrics such as Dice, Hausdorff and IoU and different losses over time.
+* Pre- and post-processing functions such as affine transformation and morphological operations.
 * The modular design of the codebase allows users to easily add new models or customize the training workflow.
 
 # Setting up the environment and data
