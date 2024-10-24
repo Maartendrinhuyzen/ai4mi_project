@@ -41,10 +41,13 @@ def run(args: argparse.Namespace) -> None:
             E, N, K = metrics.shape  # E: epochs, N: samples, K: classes
 
     # Compute the mean for each k and epoch
-    mean_scores = metrics.mean(axis=1).mean(axis=1)  # Average across axis 1 (over samples) and axis 2 (over k)
-    best_epoch = np.argmax(mean_scores)  # Find the epoch with the highest mean score
+    if args.epoch is None:
+        mean_scores = metrics.mean(axis=1).mean(axis=1)  # Average across axis 1 (over samples) and axis 2 (over k)
+        best_epoch = np.argmax(mean_scores)  # Find the epoch with the highest mean score
 
-    print(f"Best epoch: {best_epoch}")
+        print(f"Best epoch: {best_epoch}")
+    else:
+        best_epoch = args.epoch
 
     # Create a figure and axis for the boxplot
     fig = plt.figure()
@@ -52,7 +55,7 @@ def run(args: argparse.Namespace) -> None:
 
     # Set title and labels
     ax.set_title(args.plot_title)
-    ax.set_xlabel(f'Data at Best Epoch (Epoch {best_epoch})')
+    ax.set_xlabel(f'Data at Epoch {best_epoch}')
     ax.set_ylabel(args.y_label)
 
     # Extract data for the best epoch
@@ -63,6 +66,11 @@ def run(args: argparse.Namespace) -> None:
         labels = ["Background", "Esophagus", "Heart", "Trachea", "Aorta"]
         colors = ['darkgray', '#7FAC7F', '#EBD08D', '#AC7662', '#6BB1CA']
         
+        for k in range(K):
+            print(f"Median {labels[k]}: {np.median(best_epoch_data[:,k])}")
+            print(f"Mean {labels[k]}: {np.mean(best_epoch_data[:,k])}")
+            print(f"Standard Deviation {labels[k]}: {np.std(best_epoch_data[:,k])}")
+
         # Create boxplots for each class with a unique color
         boxplots = ax.boxplot([best_epoch_data[:, k] for k in range(1,K)], patch_artist=True, tick_labels=labels[1:])
         
@@ -99,6 +107,7 @@ def get_args() -> argparse.Namespace:
                         help="Optional: save the plot to a .png file")
     parser.add_argument("--headless", action="store_true",
                         help="Does not display the plot and save it directly (implies --dest to be provided).")
+    parser.add_argument('--epoch', type=int, help="Epoch to use for the data in the boxplot")                    
     parser.add_argument("--include_avg", type=bool, default=False, help="Set to True if you want to include a box for the average")
     parser.add_argument("--plot_title", type=str, required=True, help="Boxplot title")
     parser.add_argument("--y_label", type=str, required=True, help="Label for the y-axis of the plot")

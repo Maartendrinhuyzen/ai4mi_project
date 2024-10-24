@@ -63,10 +63,13 @@ def run(args: argparse.Namespace) -> None:
             E, N, K = metrics.shape
 
     # Compute the mean for each k and epoch
-    mean_scores = metrics.mean(axis=1).mean(axis=1)  # Average across axis 1 (over samples) and axis 2 (over k)
-    best_epoch = np.argmax(mean_scores)  # Find the epoch with the highest mean score
+    if args.epoch is None:
+        mean_scores = metrics.mean(axis=1).mean(axis=1)  # Average across axis 1 (over samples) and axis 2 (over k)
+        best_epoch = np.argmax(mean_scores)  # Find the epoch with the highest mean score
 
-    print(f"Best epoch: {best_epoch}")
+        print(f"Best epoch: {best_epoch}")
+    else:
+        best_epoch = args.epoch
 
     fig = plt.figure()
     ax = fig.gca()
@@ -89,7 +92,7 @@ def run(args: argparse.Namespace) -> None:
         if K > 2:
             ax.plot(epcs, y, label=labels[k], color=colors[k], linewidth=1.5)
             #ax.fill_between(epcs, y - std, y + std, color=colors[k], alpha=0.3)
-            print(f"Best score {labels[k]}: {y[best_epoch]}")
+            print(f"{best_epoch}: Score {labels[k]}: {y[best_epoch]}")
         else:
             ax.plot(epcs, y, label=f"{k=}", linewidth=1.5)
 
@@ -122,6 +125,7 @@ def get_args() -> argparse.Namespace:
                         help="Optional: save the plot to a .png file")
     parser.add_argument("--headless", action="store_true",
                         help="Does not display the plot and save it directly (implies --dest to be provided.")
+    parser.add_argument('--epoch', type=int, help="Epoch to use for printing the scores") 
     parser.add_argument("--plot_title", type=str, required=True, help="Graph title")
     parser.add_argument("--y_label", type=str, required=True, help="Label for the y-axis of the plot")
     parser.add_argument("--x_label", type=str, help="Label for x-axis of the plot")

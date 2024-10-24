@@ -36,16 +36,20 @@ def run(args: argparse.Namespace) -> None:
         case 3:
             E, N, K = metrics.shape
 
-    mean_scores = metrics.mean(axis=1).mean(axis=1)
-    best_epoch = np.argmax(mean_scores)
+    # Compute the mean for each k and epoch
+    if args.epoch is None:
+        mean_scores = metrics.mean(axis=1).mean(axis=1)  # Average across axis 1 (over samples) and axis 2 (over k)
+        best_epoch = np.argmax(mean_scores)  # Find the epoch with the highest mean score
 
-    print(f"Best epoch: {best_epoch}")
+        print(f"Best epoch: {best_epoch}")
+    else:
+        best_epoch = args.epoch
 
     fig = plt.figure()
     ax = fig.gca()
 
     ax.set_title(args.plot_title)
-    ax.set_xlabel(f'Data at Best Epoch (Epoch {best_epoch})')
+    ax.set_xlabel(f'Data at Epoch {best_epoch}')
     ax.set_ylabel(args.y_label)
 
     best_epoch_data = metrics[best_epoch, :, :] if K > 1 else metrics[best_epoch, :]
@@ -55,10 +59,14 @@ def run(args: argparse.Namespace) -> None:
         labels = ["Esophagus", "Heart", "Trachea", "Aorta"]
         colors = ['#7FAC7F', '#EBD08D', '#AC7662', '#6BB1CA']
         
+        for k in range(1,K):
+            print(f"Median {labels[k-1]}: {np.median(best_epoch_data[:,k])}")
+            print(f"Mean {labels[k-1]}: {np.mean(best_epoch_data[:,k])}")
+            print(f"Standard Deviation {labels[k-1]}: {np.std(best_epoch_data[:,k])}")
         # Select data for the classes 
         best_epoch_data = best_epoch_data[:, 1:5]  #Removed Background class
 
-        parts = ax.violinplot([best_epoch_data[:, k] for k in range(best_epoch_data.shape[1])], showmeans=True, showmedians=True, showextrema=False)
+        parts = ax.violinplot([best_epoch_data[:, k] for k in range(best_epoch_data.shape[1])], showmeans=True, showmedians=False, showextrema=False)
 
         ax.set_xticks(np.arange(1, len(labels) + 1))
         ax.set_xticklabels(labels)  
@@ -87,6 +95,7 @@ def get_args() -> argparse.Namespace:
                         help="Optional: save the plot to a .png file")
     parser.add_argument("--headless", action="store_true",
                         help="Does not display the plot and save it directly (implies --dest to be provided).")
+    parser.add_argument('--epoch', type=int, help="Epoch to use for the data in the boxplot")  
     parser.add_argument("--plot_title", type=str, required=True, help="Violin plot title")
     parser.add_argument("--y_label", type=str, required=True, help="Label for the y-axis of the plot")
     parser.add_argument("--set_ylim", type=bool, default=False, help="Set to True if you want to specify a range for the y-axis")
