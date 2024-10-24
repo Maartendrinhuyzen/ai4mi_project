@@ -80,6 +80,26 @@ $ python inference.py --dataset SEGTHOR_TESTSET --model UNetAttention --weights 
 ```
 When running in snellius, there are job templates provided as well under the aformentioned folder.
 
+### Plotting Results
+![violin plot](3D_dice_Violinplot.png)
+Fig. 1, the violin plot from the results section of our paper.
+
+The visualizations in the paper can be reproduced with the python files in the `visualization` directory.
+For example, to create a violin plot using the provided script, you can run the following command:
+
+```
+$ python plot_violin.py --metric_file results/segthor/ce/metric_val.npy \
+    --dest results/segthor/ce/violin_plot.png \
+    --epoch 25 \
+    --plot_title "Validation Metric Distribution" \
+    --y_label "Metric Score" \
+    --x_label "Classes" \
+    --set_ylim True \
+    --ylim_lower 0.5 \
+    --ylim_upper 1.0 \
+    --headless
+```
+
 ## Contributors - Group 5
 The contributors to this repository are:
 * Richter van Emmerik
