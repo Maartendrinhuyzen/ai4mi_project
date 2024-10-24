@@ -8,9 +8,9 @@ This codebase provides a foundation for training and evaluating neural networks 
 
 * Data Processing: Tools to convert 3D Nifti files into 2D .png slices, and stitch predictions back into 3D volumes compatible with the original Nifti format.
 * Model Options: Basic implementations of U-Net, Attention U-Net, and ENet models, designed for various segmentation tasks.
-* Training and Evaluation: Scripts for training neural networks with cross-entropy loss, partial class exclusion, and validation using the 2D DSC metric.
-* Debugging and Visualization: Options to run on smaller datasets or dummy networks and visualize results using plotting functions and interactive comparison tools.
-* Metrics and Plotting: Tools for logging and plotting key metrics such as Dice similarity coefficient and cross-entropy over time.
+* Training and Evaluation: Scripts for training neural networks with cross-entropy loss, partial class exclusion, and validation using the metric.
+* Metrics and Plotting: Tools for logging and plotting key metrics such as Dice, Hausdorff and IoU and different losses over time.
+* Pre- and post-processing functions such as affine transformation and morphological operations.
 * The modular design of the codebase allows users to easily add new models or customize the training workflow.
 
 # Setting up the environment and data
@@ -68,6 +68,9 @@ srun python -O main.py --dataset SEGTHOR_transformed \
 ```
 For convenience, we have added job file templates to run the training on snellius (`/job_files`)
 
+### K-fold Cross Validation
+The argument `--k_folds` specifies the number of folds that you can run in k-folds cross validation. Specify `--k_folds` to run normal training.
+
 ### Running inference
 To run inference on a trained model, we have provided a python script `inference.py`. This script helps set up the environment, load the best model weights, and execute the inference script to generate predictions.
 Example command for local inference:
@@ -75,12 +78,6 @@ Example command for local inference:
 $ python inference.py --dataset SEGTHOR_TESTSET --model UNetAttention --weights path/to/bestweights.pt --dest results/inference-unet_attention --gpu
 ```
 When running in snellius, there are job templates provided as well under the aformentioned folder.
-
-
-### Plotting the metrics
-For instructions on plotting please refer to the original repository. However we have added additional plotting scripts that can be run as follows:
-``` 
-```
 
 ## Contributors
 The contributors to this repository are:
