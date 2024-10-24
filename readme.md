@@ -82,6 +82,7 @@ When running in snellius, there are job templates provided as well under the afo
 
 ### Plotting Results
 ![violin plot](3D_dice_Violinplot.png)
+
 Fig. 1, the violin plot from the results section of our paper.
 
 The visualizations in the paper can be reproduced with the python files in the `visualization` directory.
